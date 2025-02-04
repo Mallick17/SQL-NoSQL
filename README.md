@@ -209,5 +209,34 @@ SQL is a standard language for storing, manipulating and retrieving data in data
   ```sql
   UPDATE Customers SET ContactName='Juan' WHERE Country='Mexico';
   ```
+## SQL DELETE Statement
+- The `DELETE` statement is used to delete existing records in a table.
+- Syntax
+  ```sql
+  DELETE FROM table_name WHERE condition;
+  ```
+- Note: The WHERE clause specifies which record(s) should be deleted. If you omit the WHERE clause, all records in the table will be deleted!
+- Example:
+- Deletes the customer "Alfreds Futterkiste" from the "Customers" table:
+  ```sql
+  DELETE FROM Customers WHERE CustomerName='Alfreds Futterkiste';
+  ```
+- **Delete All Records**
+- It is possible to delete all rows in a table without deleting the table. This means that the table structure, attributes, and indexes will be intact:
+- Syntax
+  ```sql
+  DELETE FROM table_name;
+  ```
+- Example
+- Delete all rows in the "Customers" table, without deleting the table:
+  ```sql
+  DELETE FROM Customers;
+  ```
+- **Delete a Table**
+- To delete the table completely, use the `DROP TABLE` statement
+- Syntax
+  ```sql
+  DROP TABLE Customers;
+  ```
   
   
