@@ -71,3 +71,51 @@ SQL is a standard language for storing, manipulating and retrieving data in data
     <br>
   **Operators in the WHERE Clause** <br>
   - = , > , < , >= , <= , <> , BETWEEN , LIKE , IN
+## SQL AND Operator
+- The `WHERE` clause can contain one or many `AND` operators.
+- The `AND` operator is used to filter records based on more than one condition.
+- Syntax
+  ```sql
+  SELECT column1, column2, ...
+  FROM table_name
+  WHERE condition1 AND condition2 AND condition3 ...;
+  ```
+- Example
+- Note: All the conditions must be TRUE in AND Operator
+- Select all fields from Customers where Country is "Germany" AND City is "Berlin" AND PostalCode is higher than 12000:
+  ```sql
+  SELECT * FROM Customers WHERE Country = 'Germany' AND City = 'Berlin' AND PostalCode > 12000;
+  ```
+- Select all customers from Spain that starts with the letter 'G':
+  ```sql
+  SELECT * FROM Customers WHERE Country = 'Spain' AND CustomerName LIKE 'G%';
+  ```
+## SQL OR Operator
+- The `WHERE` clause can contain one or more `OR` operators.
+- The `OR` operator is used to filter records based on more than one condition.
+- Syntax
+  ```sql
+  SELECT column1, column2, ...
+  FROM table_name
+  WHERE condition1 OR condition2 OR condition3 ...;
+  ```
+- Example
+- Select all customers from Germany or Spain:
+  ```sql
+  SELECT * FROM Customers WHERE Country = 'Germany' OR Country = 'Spain';
+  ```
+  ### OR vs AND
+  - The `OR` operator displays a record if any of the conditions are TRUE.
+  - The `AND` operator displays a record if all the conditions are TRUE.
+- Example
+- Select all fields from Customers where either City is "Berlin", CustomerName starts with the letter "G" or Country is "Norway":
+  ```sql
+  SELECT * FROM Customers WHERE City = 'Berlin' OR CustomerName LIKE 'G%' OR Country = 'Norway';
+  ```
+  ### Combining AND and OR
+  - Select all customers from Spain that starts with a "G" or an "R".
+    ```sql
+    SELECT * FROM Customers WHERE Country = 'Spain' AND (CustomerName LIKE 'G%' OR CustomerName LIKE 'R%');
+    ```
+    - Note:- Without parenthesis, the select statement will return all customers from Spain that starts with a "G", plus all customers that starts with an "R", regardless of the country value.
+  
