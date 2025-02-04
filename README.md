@@ -140,3 +140,16 @@ SQL is a standard language for storing, manipulating and retrieving data in data
   ```sql
   SELECT * FROM Customers ORDER BY Country ASC, CustomerName DESC;
   ```
+## SQL SELECT DISTINCT Statement
+- The `SELECT DISTINCT` statement is used to return only distinct (different) values.
+- Inside a table, a column often contains many duplicate values; and sometimes you only want to list the different (distinct) values.
+- Syntax
+  ```sql
+  SELECT DISTINCT column1, column2, ...
+  FROM table_name;
+  ```
+- Example:
+- Select all the different countries from the "Customers" table:
+  ```sql
+  SELECT DISTINCT Country FROM Customers;
+  ```
