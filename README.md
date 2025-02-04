@@ -118,4 +118,25 @@ SQL is a standard language for storing, manipulating and retrieving data in data
     SELECT * FROM Customers WHERE Country = 'Spain' AND (CustomerName LIKE 'G%' OR CustomerName LIKE 'R%');
     ```
     - Note:- Without parenthesis, the select statement will return all customers from Spain that starts with a "G", plus all customers that starts with an "R", regardless of the country value.
-  
+
+## SQL ORDER BY Keyword
+- The `ORDER BY` keyword is used to sort the result-set in ascending or descending order.
+- Syntax
+  ```sql
+  SELECT column1, column2, ...
+  FROM table_name
+  ORDER BY column1, column2, ... ASC|DESC;
+  ```
+- Example
+- Sort the products from highest to lowest price
+  ```sql
+  SELECT * FROM Products ORDER BY Price DESC;
+  ```
+- Sort the products by ProductName in reverse order
+  ```sql
+  SELECT * FROM Products ORDER BY ProductName DESC;
+  ```
+- ORDER BY Several Columns Using Both ASC and DESC
+  ```sql
+  SELECT * FROM Customers ORDER BY Country ASC, CustomerName DESC;
+  ```
