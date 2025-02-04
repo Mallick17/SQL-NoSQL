@@ -190,5 +190,24 @@ SQL is a standard language for storing, manipulating and retrieving data in data
   ('Greasy Burger', 'Per Olsen', 'Gateveien 15', 'Sandnes', '4306', 'Norway'),
   ('Tasty Tee', 'Finn Egan', 'Streetroad 19B', 'Liverpool', 'L1 0AA', 'UK');
   ```
-    
+## SQL UPDATE Statement
+- The `UPDATE` statement is used to modify the existing records in a table.
+- Syntax
+  ```sql
+  UPDATE table_name
+  SET column1 = value1, column2 = value2, ...
+  WHERE condition;
+  ```
+- **Note**: The `WHERE` clause specifies which record(s) that should be updated. If you omit the `WHERE` clause, all records in the table will be updated!
+- Example
+- Update the first customer (CustomerID = 1) with a new contact person and a new city.
+  ```sql
+  UPDATE Customers SET ContactName = 'Alfred Schmidt', City= 'Frankfurt' WHERE CustomerID = 1;
+  ```
+- Example **Update Multiple Records**
+- Update the ContactName to "Juan" for all records where country is "Mexico":
+  ```sql
+  UPDATE Customers SET ContactName='Juan' WHERE Country='Mexico';
+  ```
+  
   
