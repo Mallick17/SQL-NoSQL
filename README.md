@@ -239,12 +239,103 @@ SQL is a standard language for storing, manipulating and retrieving data in data
   DROP TABLE Customers;
   ```
 
-## SQL Joins
+## SQL JOIN Statement
 - A `JOIN` clause is used to combine rows from two or more tables, based on a related column between them.
 - **Different Types of SQL JOINs**
   - **JOIN or INNER JOIN** - Returns records that have matching values in both tables
   - **LEFT JOIN** - Returns all records from the left table, and the matched records from the right table
   - **RIGHT JOIN** - Returns all records from the right table, and the matched records from the left table
-  - **FULL JOIN** - Returns all records when there is a match in either left or right table
-  
+  - **FULL OUTER JOIN** - Returns all records when there is a match in either left or right table
+- **INNER JOIN**
+  - The `INNER JOIN` keyword selects records that have matching values in both tables.
+  - Syntax
+    ```sql
+    SELECT column_name(s)
+    FROM table1
+    INNER JOIN table2
+    ON table1.column_name = table2.column_name;
+    ```
+  - Example
+  - Join Products and Categories with the INNER JOIN keyword:
+    ```sql
+    SELECT ProductID, ProductName, CategoryName
+    FROM Products
+    INNER JOIN Categories
+    ON Products.CategoryID = Categories.CategoryID;
+    ```
+- **LEFT JOIN**
+  - The `LEFT JOIN` keyword returns all records from the left table (table1), and the matching records from the right table (table2). The result is 0 records from the right side, if there is no match.
+  - Syntax
+    ```sql
+    SELECT column_name(s)
+    FROM table1
+    LEFT JOIN table2
+    ON table1.column_name = table2.column_name;
+    ```
+  - Example
+    ```sql
+    SELECT Customers.CustomerName, Orders.OrderID
+    FROM Customers
+    LEFT JOIN Orders ON Customers.CustomerID = Orders.CustomerID;
+    ```
+- **RIGHT JOIN**
+  - The RIGHT JOIN keyword returns all records from the right table (table2), and the matching records from the left table (table1). The result is 0 records from the left side, if there is no match.
+  - Syntax
+    ```sql
+    SELECT column_name(s)
+    FROM table1
+    RIGHT JOIN table2
+    ON table1.column_name = table2.column_name;
+    ```
+  - Example
+    ```sql
+    SELECT Orders.OrderID, Employees.LastName, Employees.FirstName
+    FROM Orders
+    RIGHT JOIN Employees
+    ON Orders.EmployeeID = Employees.EmployeeID;
+    ```
+- **FULL OUTER JOIN**
+  - The FULL OUTER JOIN keyword returns all records when there is a match in left (table1) or right (table2) table records.
+  - `FULL OUTER JOIN` and `FULL JOIN` are the same.
+  - Syntax
+    ```sql
+    SELECT column_name(s)
+    FROM table1
+    FULL OUTER JOIN table2
+    ON table1.column_name = table2.column_name
+    WHERE condition;
+    ```
+  - Example: Statement selects all customers, and all orders:
+    ```sql
+    SELECT Customers.CustomerName, Orders.OrderID
+    FROM Customers
+    FULL OUTER JOIN Orders ON Customers.CustomerID=Orders.CustomerID
+    ORDER BY Customers.CustomerName;
+    ```
+## SQL GROUP BY Statement
+- The GROUP BY statement groups rows that have the same values into summary rows, like "find the number of customers in each country".
+- The `GROUP BY` statement is often used with aggregate functions (`COUNT()`, `MAX()`, `MIN()`, `SUM()`, `AVG()`) to group the result-set by one or more columns.
+- Syntax
+  ```sql
+  SELECT column_name(s)
+  FROM table_name
+  WHERE condition
+  GROUP BY column_name(s)
+  ORDER BY column_name(s);
+  ```
+- Example:
+- List the no. of customers in each country
+  ```sql
+  SELECT COUNT(CustomerID), Country
+  FROM Customers
+  GROUP BY Country;
+  ```
+-  Lists the number of customers in each country, sort from high to low
+   ```sql
+   SELECT COUNT(CustomerID), Country
+   FROM Customers
+   GROUP BY Country
+   ORDER BY COUNT(CustomerID) DESC;
+   ```
+
   
