@@ -27,9 +27,3 @@
 | **Community & Maturity**  | Mature, with decades of development and widespread adoption.                                  | Relatively newer but rapidly growing with strong community support.                    |
 
 
-   - Scales horizontally, making it cost-effective for large-scale, distributed systems.
-   - Trade-offs include eventual consistency, which may not suit applications needing immediate data accuracy.
-
-### Choosing Between SQL and NoSQL
-- **Use SQL** when you need strong consistency, complex joins, or structured data (e.g., accounting software).
-- **Use NoSQL** for high scalability, flexible data models, or real-time processing of large, unstructured datasets (e.g., social media analytics).
