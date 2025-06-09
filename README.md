@@ -27,3 +27,19 @@
 | **Community & Maturity**  | Mature, with decades of development and widespread adoption.                                  | Relatively newer but rapidly growing with strong community support.                    |
 
 
+### Key Concepts for Understanding
+1. **SQL Databases**:
+   - Best for structured data with clear relationships (e.g., customer-order data).
+   - Use a fixed schema, making them ideal for applications where data integrity and consistency are critical (e.g., banking systems).
+   - Rely on SQL for querying, which is standardized and widely understood.
+   - Scaling vertically can be expensive as it requires more powerful hardware.
+
+2. **NoSQL Databases**:
+   - Designed for flexibility, handling diverse data types (e.g., JSON, XML, graphs).
+   - Schema-less design allows rapid development and adaptation to changing requirements.
+   - Scales horizontally, making it cost-effective for large-scale, distributed systems.
+   - Trade-offs include eventual consistency, which may not suit applications needing immediate data accuracy.
+
+### Choosing Between SQL and NoSQL
+- **Use SQL** when you need strong consistency, complex joins, or structured data (e.g., accounting software).
+- **Use NoSQL** for high scalability, flexible data models, or real-time processing of large, unstructured datasets (e.g., social media analytics).
