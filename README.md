@@ -43,3 +43,165 @@
 ### Choosing Between SQL and NoSQL
 - **Use SQL** when you need strong consistency, complex joins, or structured data (e.g., accounting software).
 - **Use NoSQL** for high scalability, flexible data models, or real-time processing of large, unstructured datasets (e.g., social media analytics).
+
+
+---
+
+# MySQL Dummy Data Generator using Python in `.csv` 
+
+## Complete Documentation: Containerizing CSV Data Augmentation Script with Docker
+
+***
+
+## Project Overview
+
+This documentation covers the setup and execution of a Dockerized Python project that:
+
+- Reads an existing CSV file (`MOCK_DATA.csv`).
+- Adds 10,000 dummy data rows with unique modifications.
+- Outputs a combined CSV (`MOCK_DATA_10000_more.csv`) for local use.
+
+The containerized approach ensures reproducibility and isolation from local environment issues.
+
+***
+
+## Folder Structure
+
+Your working directory `/Users/gyanaranjan.mallick/Downloads/docker_local` should contain:
+
+- `MOCK_DATA.csv` — The original data CSV file.
+- `add_dummy_data.py` — Python script to add dummy rows.
+- `Dockerfile` — Docker image build instructions.
+
+```plaintext
+docker_local/
+├── MOCK_DATA.csv
+├── add_dummy_data.py
+└── Dockerfile
+```
+
+***
+
+## Python Script: `add_dummy_data.py`
+
+This script uses pandas to:
+
+- Load the original CSV.
+- Sample and generate 10,000 new rows,
+- Update key fields (`id`, `email`, `firstname`, `lastname`, `ipaddress`) to keep them unique.
+- Save the combined dataset back to a CSV named `MOCK_DATA_10000_more.csv`.
+
+Example script content:
+
+```python
+import pandas as pd
+
+def add_dummy_data(input_file='MOCK_DATA.csv', output_file='MOCK_DATA_10000_more.csv', num_new_rows=10000):
+    df = pd.read_csv(input_file)
+    new_rows = []
+    max_id = df['id'].max() if 'id' in df.columns else 0
+
+    for i in range(num_new_rows):
+        row = df.sample(n=1).iloc[0].copy()
+        row['id'] = max_id + i + 1
+        row['email'] = f'dummy{i}@example.com' if 'email' in df.columns else ''
+        row['firstname'] = f'FirstName{i}' if 'firstname' in df.columns else ''
+        row['lastname'] = f'LastName{i}' if 'lastname' in df.columns else ''
+        row['ipaddress'] = f'192.168.{i // 256}.{i % 256}' if 'ipaddress' in df.columns else ''
+        new_rows.append(row)
+
+    new_df = pd.DataFrame(new_rows)
+    combined_df = pd.concat([df, new_df], ignore_index=True)
+    combined_df.to_csv(output_file, index=False)
+    print(f'Successfully created {output_file} with original + {num_new_rows} dummy rows')
+
+if __name__ == "__main__":
+    add_dummy_data()
+```
+
+***
+
+## Dockerfile Content
+
+This defines the Docker image that will run the Python script:
+
+```dockerfile
+FROM python:3.11-slim
+
+WORKDIR /app
+
+COPY MOCK_DATA.csv /app/
+COPY add_dummy_data.py /app/
+
+RUN pip install pandas
+
+CMD ["python", "add_dummy_data.py"]
+```
+
+### Explanation:
+
+- `FROM python:3.11-slim`: Uses a minimal Python 3.11 base image.
+- `WORKDIR /app`: Switches working directory inside container to `/app`.
+- `COPY MOCK_DATA.csv /app/` and `COPY add_dummy_data.py /app/`: Copy files into container.
+- `RUN pip install pandas`: Installs pandas library.
+- `CMD ...`: Runs the Python script at container start.
+
+***
+
+## Commands Executed
+
+### 1. Build the Docker Image
+
+Inside `/Users/gyanaranjan.mallick/Downloads/docker_local`, run:
+
+```bash
+docker build -t csv_dummy_data .
+```
+
+- `-t csv_dummy_data` tags the image.
+- `.` sends the current folder as build context to Docker.
+
+### 2. Run the Docker Container with Volume Mount
+
+Mount your folder so the output file is saved locally:
+
+```bash
+docker run --rm -v /Users/gyanaranjan.mallick/Downloads/docker_local:/app csv_dummy_data
+```
+
+Details:
+
+- `--rm` cleans up container after exit.
+- `-v /local/path:/app` mounts folder from Mac into container's `/app`.
+- The script writes output `MOCK_DATA_10000_more.csv` into `/app`, which syncs to your Mac.
+
+### 3. Verify Output
+
+Check your local folder `/Users/gyanaranjan.mallick/Downloads/docker_local` for the file
+
+`MOCK_DATA_10000_more.csv` containing the combined data.
+
+***
+
+## Summary
+
+This setup provides a reproducible way to:
+
+- Run data augmentation inside an isolated container.
+- Avoid local environment dependency issues.
+- Easily share or automate data preparation.
+
+If your original CSV or script changes, simply rebuild the image and rerun the container.
+
+***
+
+[1](https://stackoverflow.com/questions/61262638/how-should-i-containerize-a-python-script-which-reads-a-csv-file)
+[2](https://forums.docker.com/t/how-to-create-a-docker-container-when-i-have-two-python-scripts-which-are-dependent-to-each-other/128530)
+[3](https://towardsdatascience.com/build-and-run-a-docker-container-for-your-machine-learning-model-60209c2d7a7f/)
+[4](https://realpython.com/python-csv/)
+[5](https://dev.to/cloudforce/containerizing-python-data-processing-scripts-with-docker-a-step-by-step-guide-166)
+[6](https://www.kdnuggets.com/build-your-own-simple-data-pipeline-with-python-and-docker)
+[7](https://www.dataquest.io/blog/intro-to-docker-compose/)
+
+---
+
