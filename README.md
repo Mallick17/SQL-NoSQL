@@ -205,3 +205,120 @@ If your original CSV or script changes, simply rebuild the image and rerun the c
 
 ---
 
+# Step-by-Step Guide to Create the `Ola_cab` Table in MySQL
+
+You have a CSV with many columns. To import it properly, let's create a MySQL table that matches its structure.
+
+***
+
+## 1. Connect to MySQL container shell
+
+```bash
+docker exec -it local-mysql bash
+```
+
+## 2. Log into MySQL
+
+```sql
+mysql -u root -p
+# Enter the password (rootpass)
+```
+
+## 3. Create and use the `appdb2` database
+
+```sql
+CREATE DATABASE IF NOT EXISTS appdb2;
+USE appdb2;
+```
+
+## 4. Create the `Ola_cab` table
+
+Based on your column list, here is a sample `CREATE TABLE` statement with suitable data types. You should adjust data types based on actual data characteristics (length, numeric or text, etc.):
+
+```sql
+CREATE TABLE Ola_cab (
+  id INT PRIMARY KEY,
+  first_name VARCHAR(100),
+  last_name VARCHAR(100),
+  email VARCHAR(255),
+  gender VARCHAR(10),
+  ip_address VARCHAR(45),
+  city_id INT,
+  cab_type VARCHAR(50),
+  vendor_id INT,
+  owner_id INT,
+  lease_owner_id INT,
+  cab_color_id INT,
+  cab_model_id INT,
+  cab_segment_id INT,
+  installment DECIMAL(10,2),
+  purchase_from VARCHAR(255),
+  color VARCHAR(50),
+  model VARCHAR(100),
+  engine_number VARCHAR(100),
+  chassis_number VARCHAR(100),
+  total_purchase_cost DECIMAL(15,2),
+  total_payment DECIMAL(15,2),
+  policy_number VARCHAR(100),
+  company_name VARCHAR(255),
+  amount DECIMAL(15,2),
+  idv_value DECIMAL(15,2),
+  nil_depreciation_value DECIMAL(15,2),
+  cab_number VARCHAR(50),
+  tally_ledger_name VARCHAR(255),
+  gps_number VARCHAR(100),
+  registration_number VARCHAR(100),
+  is_ac BOOLEAN,
+  allow_out_station BOOLEAN,
+  owner_come_as_driver BOOLEAN,
+  driver_id INT,
+  booking_id INT,
+  status VARCHAR(50),
+  cab_state VARCHAR(50),
+  rating DECIMAL(3,2),
+  reduce_rating BOOLEAN,
+  rating_reduced_at DATETIME,
+  points INT,
+  current_points INT,
+  exit_initiated_at DATETIME,
+  exit_initiated_by_id INT,
+  exit_initiated_by_role VARCHAR(50),
+  exited_at DATETIME,
+  exited_by_id INT,
+  device_model VARCHAR(100),
+  os_version VARCHAR(100),
+  driver_app_version VARCHAR(50),
+  driver_app_version_updated_at DATETIME,
+  fc_end_date DATE,
+  policy_end_date DATE,
+  policy_start_date DATE,
+  purchase_date DATE,
+  manufacturing_year YEAR,
+  meter_reading INT,
+  permit_end_date DATE,
+  leased_vehicle BOOLEAN,
+  lease_agreement_end_date DATE,
+  date_of_commence DATE,
+  firstname VARCHAR(100),
+  lastname VARCHAR(100),
+  ipaddress VARCHAR(45)
+);
+```
+
+
+> **Notes:**
+> - `BOOLEAN` columns in MySQL are typically treated as tiny integers (0/1).
+> - Adjust column sizes or types based on your data for best results.
+
+## 5. Verify table creation
+
+```sql
+SHOW TABLES;
+DESCRIBE Ola_cab;
+```
+
+## Next Steps
+- After table creation, import your CSV data using `LOAD DATA INFILE` or other import method.
+- Validate the import.
+
+***
