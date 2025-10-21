@@ -317,8 +317,31 @@ SHOW TABLES;
 DESCRIBE Ola_cab;
 ```
 
-## Next Steps
-- After table creation, import your CSV data using `LOAD DATA INFILE` or other import method.
-- Validate the import.
+## 6. Find and place the CSV in the allowed directory**
+
+1. Check the secure file privilege path inside container:
+
+```sql
+SHOW VARIABLES LIKE 'secure_file_priv';
+```
+
+This will show the directory MySQL accepts secure file operations from, e.g., `/var/lib/mysql-files/`.
+
+2. Copy your CSV into that directory inside container, e.g.:
+
+```bash
+docker cp /Users/gyanaranjan.mallick/Downloads/docker_local/MOCK_DATA_10000_more.csv local-mysql:/var/lib/mysql-files/
+```
+
+3. Then run your import using full path inside that directory, e.g.:
+
+```sql
+LOAD DATA INFILE '/var/lib/mysql-files/MOCK_DATA_10000_more.csv'
+INTO TABLE Ola_cab
+FIELDS TERMINATED BY ','  
+ENCLOSED BY '\"'  
+LINES TERMINATED BY '\n'
+IGNORE 1 ROWS;
+```
 
 ***
