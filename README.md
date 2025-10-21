@@ -207,6 +207,242 @@ If your original CSV or script changes, simply rebuild the image and rerun the c
 
 # Step-by-Step Guide to Create the `Ola_cab` Table in MySQL
 
+<details>
+    <summary>Click to view the Quick Setup</summary>
+
+# Step-by-Step Commands you can run from your Container Shell to:
+
+1. create a database `ola_db`
+2. create lookup tables (`City`, `Vendor`, `Owner`)
+3. create the `Ola_cab` table with **foreign key** constraints (so MySQL enforces referential integrity)
+4. seed the lookup tables with valid IDs
+5. load your CSV file `/var/lib/mysql-files/MOCK_DATA_10000_more.csv` into `Ola_cab` (the CSV header is ignored)
+
+---
+
+## 1) Create a SQL script (copy & paste this into your container)
+
+Paste everything between the triple backticks into a new file, for example `/tmp/ola_create_and_load.sql`:
+
+```bash
+cat > /tmp/ola_create_and_load.sql <<'SQL'
+-- Create database and use it
+CREATE DATABASE IF NOT EXISTS ola_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+USE ola_db;
+
+-- Create lookup tables for foreign keys
+CREATE TABLE IF NOT EXISTS City (
+  id INT PRIMARY KEY,
+  name VARCHAR(100)
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS Vendor (
+  id INT PRIMARY KEY,
+  name VARCHAR(100)
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS Owner (
+  id INT PRIMARY KEY,
+  name VARCHAR(200)
+) ENGINE=InnoDB;
+
+-- Create main Ola_cab table (types follow your provided schema).
+-- Note: ensure column order below matches the CSV header order.
+CREATE TABLE IF NOT EXISTS Ola_cab (
+  id INT PRIMARY KEY,
+  first_name VARCHAR(100),
+  last_name VARCHAR(100),
+  email VARCHAR(255),
+  gender VARCHAR(10),
+  ip_address VARCHAR(45),
+  city_id INT,
+  cab_type VARCHAR(50),
+  vendor_id INT,
+  owner_id INT,
+  lease_owner_id INT,
+  cab_color_id INT,
+  cab_model_id INT,
+  cab_segment_id INT,
+  installment DECIMAL(10,2),
+  purchase_from VARCHAR(255),
+  color VARCHAR(50),
+  model VARCHAR(100),
+  engine_number VARCHAR(100),
+  chassis_number VARCHAR(100),
+  total_purchase_cost DECIMAL(15,2),
+  total_payment DECIMAL(15,2),
+  policy_number VARCHAR(100),
+  company_name VARCHAR(255),
+  amount DECIMAL(15,2),
+  idv_value DECIMAL(15,2),
+  nil_depreciation_value DECIMAL(15,2),
+  cab_number VARCHAR(50),
+  tally_ledger_name VARCHAR(255),
+  gps_number VARCHAR(100),
+  registration_number VARCHAR(100),
+  is_ac BOOLEAN,
+  allow_out_station BOOLEAN,
+  owner_come_as_driver BOOLEAN,
+  driver_id INT,
+  booking_id INT,
+  status VARCHAR(50),
+  cab_state VARCHAR(50),
+  rating DECIMAL(3,2),
+  reduce_rating BOOLEAN,
+  rating_reduced_at DATETIME,
+  points INT,
+  current_points INT,
+  exit_initiated_at DATETIME,
+  exit_initiated_by_id INT,
+  exit_initiated_by_role VARCHAR(50),
+  exited_at DATETIME,
+  exited_by_id INT,
+  device_model VARCHAR(100),
+  os_version VARCHAR(100),
+  driver_app_version VARCHAR(50),
+  driver_app_version_updated_at DATETIME,
+  fc_end_date DATE,
+  policy_end_date DATE,
+  policy_start_date DATE,
+  purchase_date DATE,
+  manufacturing_year YEAR,
+  meter_reading INT,
+  permit_end_date DATE,
+  leased_vehicle BOOLEAN,
+  lease_agreement_end_date DATE,
+  date_of_commence DATE,
+  firstname VARCHAR(100),
+  lastname VARCHAR(100),
+  ipaddress VARCHAR(45),
+  CONSTRAINT fk_olacab_city FOREIGN KEY (city_id) REFERENCES City(id),
+  CONSTRAINT fk_olacab_vendor FOREIGN KEY (vendor_id) REFERENCES Vendor(id),
+  CONSTRAINT fk_olacab_owner FOREIGN KEY (owner_id) REFERENCES Owner(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Seed lookup tables using a recursive CTE (generate 1..N rows).
+-- Cities 1..100
+WITH RECURSIVE seq AS (
+  SELECT 1 AS n
+  UNION ALL
+  SELECT n+1 FROM seq WHERE n < 100
+)
+INSERT INTO City (id, name)
+SELECT n, CONCAT('City_', n)
+FROM seq
+ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+-- Vendors 1..50
+WITH RECURSIVE seq2 AS (
+  SELECT 1 AS n
+  UNION ALL
+  SELECT n+1 FROM seq2 WHERE n < 50
+)
+INSERT INTO Vendor (id, name)
+SELECT n, CONCAT('Vendor_', n)
+FROM seq2
+ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+-- Owners 1..200
+WITH RECURSIVE seq3 AS (
+  SELECT 1 AS n
+  UNION ALL
+  SELECT n+1 FROM seq3 WHERE n < 200
+)
+INSERT INTO Owner (id, name)
+SELECT n, CONCAT('Owner_', n)
+FROM seq3
+ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+-- Make sure data is committed before load (not strictly necessary in a script, but safe)
+FLUSH TABLES;
+
+-- Load CSV into Ola_cab
+-- IMPORTANT: adjust the FIELDS/ENCLOSED/TERMINATED rules if your CSV format differs
+LOAD DATA INFILE '/var/lib/mysql-files/MOCK_DATA_10000_more.csv'
+INTO TABLE Ola_cab
+CHARACTER SET utf8mb4
+FIELDS TERMINATED BY ',' OPTIONALLY ENCLOSED BY '"' 
+LINES TERMINATED BY '\n'
+IGNORE 1 LINES
+(
+  id, first_name, last_name, email, gender, ip_address, city_id, cab_type, vendor_id, owner_id,
+  lease_owner_id, cab_color_id, cab_model_id, cab_segment_id, installment, purchase_from, color, model,
+  engine_number, chassis_number, total_purchase_cost, total_payment, policy_number, company_name, amount,
+  idv_value, nil_depreciation_value, cab_number, tally_ledger_name, gps_number, registration_number, is_ac,
+  allow_out_station, owner_come_as_driver, driver_id, booking_id, status, cab_state, rating, reduce_rating,
+  rating_reduced_at, points, current_points, exit_initiated_at, exit_initiated_by_id, exit_initiated_by_role,
+  exited_at, exited_by_id, device_model, os_version, driver_app_version, driver_app_version_updated_at,
+  fc_end_date, policy_end_date, policy_start_date, purchase_date, manufacturing_year, meter_reading,
+  permit_end_date, leased_vehicle, lease_agreement_end_date, date_of_commence, firstname, lastname, ipaddress
+);
+
+-- Basic verification queries
+SELECT COUNT(*) AS total_rows FROM Ola_cab;
+SELECT COUNT(*) AS cities FROM City;
+SELECT COUNT(*) AS vendors FROM Vendor;
+SELECT COUNT(*) AS owners FROM Owner;
+
+SQL
+```
+
+---
+
+## 2) Run the script (copy & paste)
+
+From the same shell, run:
+
+```bash
+# Run the SQL script (you will be prompted for the MySQL root password)
+mysql -u root -p < /tmp/ola_create_and_load.sql
+```
+
+Enter the root password when prompted. The script will:
+
+* create DB and tables
+* seed City/Vendor/Owner
+* import the CSV (ignoring the header line)
+* print the counts at the end
+
+---
+
+## 3) Quick interactive verification (optional)
+
+If you prefer to run queries interactively after the load:
+
+```bash
+mysql -u root -p
+# then inside mysql prompt:
+USE ola_db;
+SELECT COUNT(*) FROM Ola_cab;
+SELECT id, name FROM City LIMIT 5;
+SELECT id, name FROM Vendor LIMIT 5;
+SELECT id, name FROM Owner LIMIT 5;
+SELECT id, first_name, city_id FROM Ola_cab LIMIT 5;
+```
+
+---
+
+## Notes, troubleshooting & tips
+
+1. **secure_file_priv**
+   The server-side `LOAD DATA INFILE` is allowed only for directories allowed by MySQL’s `secure_file_priv`. By default `/var/lib/mysql-files` is allowed on many installations — you already have the CSV there, which is perfect. If you get an error like `The MySQL server is running with the --secure-file-priv option so it cannot execute this statement`, let me know the error text and I’ll give the fix.
+
+2. **CSV format**
+
+   * I used `FIELDS TERMINATED BY ',' OPTIONALLY ENCLOSED BY '"'` and `LINES TERMINATED BY '\n'`. If your CSV uses `\r\n` line endings, replace `LINES TERMINATED BY '\r\n'`.
+   * The `IGNORE 1 LINES` tells MySQL to skip the header row.
+
+3. **Foreign key failures**
+
+   * If a CSV row has a `city_id`, `vendor_id` or `owner_id` that is not present in the seeded lookup tables, MySQL will **reject** that row (foreign key constraint).
+   * We seeded City 1..100, Vendor 1..50, Owner 1..200. If your CSV contains IDs outside these ranges, change the seeding ranges or pre-process the CSV to fix IDs. If you prefer MySQL to accept the rows without enforcement, I can give a variant that creates the table **without** foreign keys.
+
+4. **If LOAD DATA fails with data conversion issues**
+
+   * Date/time or boolean formats in the CSV can cause errors. If you hit such an error paste the error message and I’ll adapt the LOAD statement (or provide a Python loader that parses/validates).
+   
+</details>
+
 You have a CSV with many columns. To import it properly, let's create a MySQL table that matches its structure.
 
 ***
