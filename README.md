@@ -452,6 +452,9 @@ You have a CSV with many columns. To import it properly, let's create a MySQL ta
 
 ***
 
+<details>
+    <summary>Click to view the long setup</summary>
+
 ## 1. Connect to MySQL container shell
 
 ```bash
@@ -630,6 +633,8 @@ mysqldump -u root -p appdb > /path/to/save/appdb.sql
 ```
 
 You’ll be prompted for your password, and then the dump file will be created in the location you specify.
+
+</details>
 
 ---
 
