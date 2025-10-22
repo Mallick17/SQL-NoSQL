@@ -800,16 +800,6 @@ This guide provides a clean and organized process to import the Employees Databa
 - Documentation: https://dev.mysql.com/doc/employee/en/ for schema.
 - Drop/reload: `DROP DATABASE employees;` then repeat Step 6.
 
-#### Step 9: Apply to Your `ola_create_and_load.sql`
-- Copy CSV: `docker cp MOCK_DATA_10000_more.csv mysql-container:/var/lib/mysql-files/`
-- Copy script: `docker cp ola_create_and_load.sql mysql-container:/tmp/ola_create_and_load.sql`
-- Run: `mysql -u root -p --local-infile=1 < /tmp/ola_create_and_load.sql`
-- Ensure CSV path in script matches `/var/lib/mysql-files/MOCK_DATA_10000_more.csv`; apply permissions:
-  ```
-  chmod 644 /var/lib/mysql-files/MOCK_DATA_10000_more.csv
-  chown mysql:mysql /var/lib/mysql-files/MOCK_DATA_10000_more.csv
-  ```
-
 #### Troubleshooting
 - **Local Infile Errors**: Add `local_infile=1` to `/etc/mysql/my.cnf`; restart container (`docker restart mysql-container`).
 - **File Not Found**: Verify paths in `employees.sql`; re-copy repo:
@@ -822,5 +812,378 @@ This guide provides a clean and organized process to import the Employees Databa
 - **Logs**: `tail -n 50 /var/log/mysql/error.log`.
 - **Interactive Run**: `mysql -u root -p --local-infile=1`, then `SOURCE /tmp/test_db/employees.sql;`.
 - **GUI Access**: Use MySQL Workbench on host, connect to `localhost:3306`.
+
+<details>
+    <summary>Click to view the Errors Faced and issue solved</summary>
+
+### Documentation: Errors Faced and Solutions for Importing the Employees Database into a MySQL Container
+
+This documentation outlines the errors encountered while importing the Employees Database into a MySQL container (using the `mysql:8.0` image) and the steps taken to resolve them. The Employees Database, sourced from https://github.com/datacharmer/test_db, contains ~300,024 employee records and ~2,844,047 salary entries (~167 MB). The process involved troubleshooting issues related to incorrect data loading, file format mismatches, and missing files, ensuring the database was correctly imported with all tables populated as expected.
+
+---
+
+#### Environment
+- **MySQL Version**: 8.0.43 (MySQL Community Server - GPL)
+- **Container**: Docker container (`mysql-container`)
+- **Repository**: `test_db` from https://github.com/datacharmer/test_db
+- **Files**: `employees.sql`, `load_*.dump` files (e.g., `load_employees.dump`, `load_salaries1.dump`), `show_elapsed.sql`, `test_employees_md5.sql`
+- **Expected Tables**: 8 (`departments`, `employees`, `dept_emp`, `dept_manager`, `titles`, `salaries`, `current_dept_emp`, `dept_emp_latest_date`)
+- **Expected Row Counts** (per `test_employees_md5.sql`):
+  - `departments`: 9
+  - `employees`: 300,024
+  - `dept_emp`: 331,603
+  - `dept_manager`: 24
+  - `titles`: 443,308
+  - `salaries`: 2,844,047
+
+---
+
+#### Errors Encountered and Solutions
+
+##### Error 1: Incorrect Row Counts in Tables
+**Description**:
+- After running `employees.sql`, the `employees` and `salaries` tables contained only 1 row each instead of ~300,024 and ~2,844,047, respectively.
+- The integrity test (`test_employees_md5.sql`) showed mismatched record counts and CRCs:
+  ```
+  +--------------+------------------+----------------------------------+
+  | table_name   | found_records    | found_crc                        |
+  +--------------+------------------+----------------------------------+
+  | departments  |                1 | 44654a97e80b0a21d8152d7340d8eee4 |
+  | dept_emp     |                0 |                                  |
+  | dept_manager |                0 |                                  |
+  | employees    |                1 | 6b93bc3d003ec1d24aac3b272f0c2920 |
+  | salaries     |                1 | 77e4ce80a0e26e76bdb99088a057460c |
+  | titles       |                1 | b76e1781057c58f750cb599ff9ad3664 |
+  +--------------+------------------+----------------------------------+
+  ```
+- Inspecting `employees` showed invalid data:
+  ```
+  +--------+------------+------------+-----------+--------+------------+
+  | emp_no | birth_date | first_name | last_name | gender | hire_date  |
+  +--------+------------+------------+-----------+--------+------------+
+  |      0 | 0000-00-00 |            |           |        | 0000-00-00 |
+  +--------+------------+------------+-----------+--------+------------+
+  ```
+
+**Cause**:
+- The `employees.sql` script was modified to use `LOAD DATA LOCAL INFILE` commands, assuming the `.dump` files (e.g., `load_employees.dump`) were tab-separated raw data.
+- Inspection revealed the `.dump` files contained SQL `INSERT` statements (e.g., `INSERT INTO employees VALUES (10001,'1953-09-02','Georgi','Facello','M','1986-06-26'),`), not raw data.
+- `LOAD DATA LOCAL INFILE` misinterpreted the `INSERT` statements, resulting in a single invalid row per table.
+
+**Solution**:
+1. **Inspected `.dump` Files**:
+   ```
+   head -n 5 /var/lib/mysql-files/load_employees.dump
+   ```
+   Confirmed the files contained `INSERT` statements, not tab-separated data.
+2. **Reverted `employees.sql`**:
+   - Backed up the modified script:
+     ```
+     cp /tmp/test_db/employees.sql /tmp/test_db/employees.sql.bak3
+     ```
+   - Edited `/tmp/test_db/employees.sql` to restore `source` commands, matching the SQL format of the `.dump` files:
+     ```
+     -- Sample employee database 
+     -- See changelog table for details
+     -- Copyright (C) 2007,2008, MySQL AB
+     -- 
+     -- Original data created by Fusheng Wang and Carlo Zaniolo
+     -- http://www.cs.aau.dk/TimeCenter/software.htm
+     -- http://www.cs.aau.dk/TimeCenter/Data/employeeTemporalDataSet.zip
+     -- 
+     -- Current schema by Giuseppe Maxia 
+     -- Data conversion from XML to relational by Patrick Crews
+     -- 
+     -- This work is licensed under the 
+     -- Creative Commons Attribution-Share Alike 3.0 Unported License. 
+     -- To view a copy of this license, visit 
+     -- http://creativecommons.org/licenses/by-sa/3.0/ or send a letter to 
+     -- Creative Commons, 171 Second Street, Suite 300, San Francisco, 
+     -- California, 94105, USA.
+     -- 
+     -- DISCLAIMER
+     -- To the best of our knowledge, this data is fabricated, and
+     -- it does not correspond to real people. 
+     -- Any similarity to existing people is purely coincidental.
+     -- 
+
+     DROP DATABASE IF EXISTS employees;
+     CREATE DATABASE IF NOT EXISTS employees;
+     USE employees;
+
+     SELECT 'CREATING DATABASE STRUCTURE' as 'INFO';
+
+     DROP TABLE IF EXISTS dept_emp,
+                          dept_manager,
+                          titles,
+                          salaries, 
+                          employees, 
+                          departments;
+
+     /*!50503 set default_storage_engine = InnoDB */;
+     /*!50503 select CONCAT('storage engine: ', @@default_storage_engine) as INFO */;
+
+     CREATE TABLE employees (
+         emp_no      INT             NOT NULL,
+         birth_date  DATE            NOT NULL,
+         first_name  VARCHAR(14)     NOT NULL,
+         last_name   VARCHAR(16)     NOT NULL,
+         gender      ENUM ('M','F')  NOT NULL,    
+         hire_date   DATE            NOT NULL,
+         PRIMARY KEY (emp_no)
+     );
+
+     CREATE TABLE departments (
+         dept_no     CHAR(4)         NOT NULL,
+         dept_name   VARCHAR(40)     NOT NULL,
+         PRIMARY KEY (dept_no),
+         UNIQUE  KEY (dept_name)
+     );
+
+     CREATE TABLE dept_manager (
+        emp_no       INT             NOT NULL,
+        dept_no      CHAR(4)         NOT NULL,
+        from_date    DATE            NOT NULL,
+        to_date      DATE            NOT NULL,
+        FOREIGN KEY (emp_no)  REFERENCES employees (emp_no)    ON DELETE CASCADE,
+        FOREIGN KEY (dept_no) REFERENCES departments (dept_no) ON DELETE CASCADE,
+        PRIMARY KEY (emp_no,dept_no)
+     ); 
+
+     CREATE TABLE dept_emp (
+         emp_no      INT             NOT NULL,
+         dept_no     CHAR(4)         NOT NULL,
+         from_date   DATE            NOT NULL,
+         to_date     DATE            NOT NULL,
+         FOREIGN KEY (emp_no)  REFERENCES employees   (emp_no)  ON DELETE CASCADE,
+         FOREIGN KEY (dept_no) REFERENCES departments (dept_no) ON DELETE CASCADE,
+         PRIMARY KEY (emp_no,dept_no)
+     );
+
+     CREATE TABLE titles (
+         emp_no      INT             NOT NULL,
+         title       VARCHAR(50)     NOT NULL,
+         from_date   DATE            NOT NULL,
+         to_date     DATE,
+         FOREIGN KEY (emp_no) REFERENCES employees (emp_no) ON DELETE CASCADE,
+         PRIMARY KEY (emp_no,title, from_date)
+     ); 
+
+     CREATE TABLE salaries (
+         emp_no      INT             NOT NULL,
+         salary      INT             NOT NULL,
+         from_date   DATE            NOT NULL,
+         to_date     DATE            NOT NULL,
+         FOREIGN KEY (emp_no) REFERENCES employees (emp_no) ON DELETE CASCADE,
+         PRIMARY KEY (emp_no, from_date)
+     ); 
+
+     CREATE OR REPLACE VIEW dept_emp_latest_date AS
+         SELECT emp_no, MAX(from_date) AS from_date, MAX(to_date) AS to_date
+         FROM dept_emp
+         GROUP BY emp_no;
+
+     CREATE OR REPLACE VIEW current_dept_emp AS
+         SELECT l.emp_no, dept_no, l.from_date, l.to_date
+         FROM dept_emp d
+             INNER JOIN dept_emp_latest_date l
+             ON d.emp_no=l.emp_no AND d.from_date=l.from_date AND l.to_date = d.to_date;
+
+     FLUSH /*!50503 binary */ LOGS;
+
+     SELECT 'LOADING departments' as 'INFO';
+     source /var/lib/mysql-files/load_departments.dump;
+
+     SELECT 'LOADING employees' as 'INFO';
+     source /var/lib/mysql-files/load_employees.dump;
+
+     SELECT 'LOADING dept_emp' as 'INFO';
+     source /var/lib/mysql-files/load_dept_emp.dump;
+
+     SELECT 'LOADING dept_manager' as 'INFO';
+     source /var/lib/mysql-files/load_dept_manager.dump;
+
+     SELECT 'LOADING titles' as 'INFO';
+     source /var/lib/mysql-files/load_titles.dump;
+
+     SELECT 'LOADING salaries' as 'INFO';
+     source /var/lib/mysql-files/load_salaries1.dump;
+     source /var/lib/mysql-files/load_salaries2.dump;
+     source /var/lib/mysql-files/load_salaries3.dump;
+
+     source /tmp/test_db/show_elapsed.sql;
+     ```
+
+3. **Moved `.dump` Files**:
+   Ensured all `.dump` files were in `/var/lib/mysql-files/`:
+   ```
+   mv /tmp/test_db/*.dump /var/lib/mysql-files/
+   chmod -R 644 /var/lib/mysql-files/*.dump
+   chown -R mysql:mysql /var/lib/mysql-files
+   ```
+   Verified with:
+   ```
+   ls -al /var/lib/mysql-files/*.dump
+   ```
+4. **Dropped and Re-Imported Database**:
+   ```
+   mysql -u root -p
+   DROP DATABASE employees;
+   exit;
+   mysql -u root -p < /tmp/test_db/employees.sql
+   ```
+   - Removed `--local-infile=1` since `source` doesn’t require it.
+   - Monitored output to confirm successful loading of each table.
+
+**Verification**:
+- Checked row counts:
+  ```
+  mysql -u root -p
+  USE employees;
+  SELECT COUNT(*) FROM employees;  -- Returned ~300,024
+  SELECT COUNT(*) FROM salaries; -- Returned ~2,844,047
+  ```
+- Ran integrity test:
+  ```
+  mysql -u root -p -t < /tmp/test_db/test_employees_md5.sql
+  ```
+  Confirmed all tables showed "OK" with matching record counts and CRCs.
+
+---
+
+##### Error 2: Failed to Open `show_elapsed.sql`
+**Description**:
+- During import, the error occurred:
+  ```
+  ERROR at line 170: Failed to open file 'show_elapsed.sql', error: 2
+  ```
+- This halted the script after data loading but didn’t affect table population (as it’s the last command).
+
+**Cause**:
+- The `employees.sql` script referenced `source show_elapsed.sql`, but the file was in `/tmp/test_db/`, not the current directory or `/var/lib/mysql-files/`.
+
+**Solution**:
+1. **Verified File Location**:
+   ```
+   ls -al /tmp/test_db/show_elapsed.sql
+   ```
+   Confirmed the file existed in `/tmp/test_db/`.
+2. **Updated `employees.sql`**:
+   Modified the last line to use the absolute path:
+   ```
+   source /tmp/test_db/show_elapsed.sql;
+   ```
+3. **Ensured Permissions**:
+   ```
+   chmod 644 /tmp/test_db/show_elapsed.sql
+   chown mysql:mysql /tmp/test_db/show_elapsed.sql
+   ```
+4. **Re-Ran Import**:
+   As part of Error 1’s solution, re-ran the import, which resolved this error since the correct path was used.
+
+**Verification**:
+- The import completed without the `show_elapsed.sql` error.
+- `show_elapsed.sql` executed, displaying the elapsed time for the import.
+
+---
+
+##### Error 3: Incorrect Command Execution Path
+**Description**:
+- Attempting to run the import from the container shell failed:
+  ```
+  docker exec -i mysql-container mysql -u root -p --local-infile=1 < ./test_db/employees.sql
+  bash: ./test_db/employees.sql: No such file or directory
+  ```
+- Additionally, `docker ps` failed inside the container:
+  ```
+  bash: docker: command not found
+  ```
+
+**Cause**:
+- The command was run inside the container, where `./test_db/` refers to the container’s filesystem, but the file was on the host.
+- `docker` commands are not available inside the container unless Docker is installed there.
+
+**Solution**:
+1. **Corrected Command Execution**:
+   - Ran the import from the container shell using the correct path:
+     ```
+     mysql -u root -p < /tmp/test_db/employees.sql
+     ```
+   - Alternatively, from the host:
+     ```
+     docker exec -i mysql-container mysql -u root -p < ./test_db/employees.sql
+     ```
+2. **Ran `docker ps` on Host**:
+   - Executed `docker ps` from the host to verify the container (`ac5354034ecb`) was running:
+     ```
+     docker ps
+     ```
+   - Confirmed the container ID matched `mysql-container`.
+
+**Verification**:
+- The import succeeded when using the correct path.
+- `docker ps` on the host showed the container running.
+
+---
+
+#### Final Verification
+After applying the solutions:
+1. **Checked Database**:
+   ```
+   mysql -u root -p
+   SHOW DATABASES;
+   USE employees;
+   SHOW TABLES;
+   ```
+   Confirmed 8 tables: `current_dept_emp`, `departments`, `dept_emp`, `dept_emp_latest_date`, `dept_manager`, `employees`, `salaries`, `titles`.
+2. **Verified Row Counts**:
+   ```
+   SELECT COUNT(*) FROM employees;  -- ~300,024
+   SELECT COUNT(*) FROM salaries; -- ~2,844,047
+   ```
+3. **Inspected Data**:
+   ```
+   SELECT * FROM employees LIMIT 5;
+   ```
+   Showed valid data, e.g.:
+   ```
+   +--------+------------+------------+-----------+--------+------------+
+   | emp_no | birth_date | first_name | last_name | gender | hire_date  |
+   +--------+------------+------------+-----------+--------+------------+
+   |  10001 | 1953-09-02 | Georgi     | Facello   | M      | 1986-06-26 |
+   |  10002 | 1964-06-02 | Bezalel    | Simmel    | F      | 1985-11-21 |
+   ...
+   ```
+4. **Ran Integrity Test**:
+   ```
+   mysql -u root -p -t < /tmp/test_db/test_employees_md5.sql
+   ```
+   All tables showed "OK" with matching counts and CRCs.
+
+---
+
+#### Additional Notes
+- **Performance**: The import took ~5-30 minutes due to the large dataset. Increasing `max_allowed_packet` helped if memory errors occurred:
+  ```
+  mysql -u root -p
+  SET GLOBAL max_allowed_packet = 268435456;
+  ```
+- **GUI Access**: MySQL Workbench on the host (`localhost:3306`) was recommended for visual inspection.
+- **Other Databases**: The process can be adapted for other datasets (e.g., Sakila) from https://dev.mysql.com/doc/index-other.html.
+- **Troubleshooting Tools**:
+  - Logs: `tail -n 50 /var/log/mysql/error.log`
+  - Interactive import: `mysql -u root -p; SOURCE /tmp/test_db/employees.sql;`
+
+---
+
+#### Lessons Learned
+1. **Verify File Formats**: Always inspect `.dump` files (e.g., `head load_employees.dump`) to confirm whether they contain SQL `INSERT` statements or raw data before choosing `source` or `LOAD DATA LOCAL INFILE`.
+2. **Use Absolute Paths**: Ensure `source` commands use absolute paths (e.g., `/tmp/test_db/show_elapsed.sql`) to avoid file-not-found errors.
+3. **Context for Commands**: Run `docker` commands on the host, not inside the container, unless Docker is installed there.
+4. **Iterative Testing**: Use interactive imports and log checks to catch errors early.
+
+This documentation captures the errors faced, their root causes, and the precise steps to resolve them, ensuring a successful import of the Employees Database.
+
+</details>
 
 If issues persist, share error outputs or specific issues with `ola_create_and_load.sql`. For other databases (e.g., Sakila, World), adapt this process using dumps from https://dev.mysql.com/doc/index-other.html.
