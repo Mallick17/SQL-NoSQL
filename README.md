@@ -51,6 +51,9 @@
 
 ## Complete Documentation: Containerizing CSV Data Augmentation Script with Docker
 
+<details>
+    <summary>Click to view the complete documentation</summary>
+
 ***
 
 ## Project Overview
@@ -202,6 +205,8 @@ If your original CSV or script changes, simply rebuild the image and rerun the c
 [5](https://dev.to/cloudforce/containerizing-python-data-processing-scripts-with-docker-a-step-by-step-guide-166)
 [6](https://www.kdnuggets.com/build-your-own-simple-data-pipeline-with-python-and-docker)
 [7](https://www.dataquest.io/blog/intro-to-docker-compose/)
+
+</details>
 
 ---
 
