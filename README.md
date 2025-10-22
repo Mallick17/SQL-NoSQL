@@ -581,3 +581,49 @@ IGNORE 1 ROWS;
 ```
 
 ***
+
+## 1. **What is a MySQL dump?**
+
+A *dump* is a file (usually `.sql`) that contains a database’s schema and/or data — typically created using the `mysqldump` utility or via tools like `phpMyAdmin`, `MySQL Workbench`, or an automated backup script. **MySQL doesn’t automatically create or store dumps** anywhere.
+
+---
+
+### 2. **Where dumps can be found (if they exist):**
+
+It depends on how the dump was created:
+
+| Method                       | Default / Common Dump Location                                        | Notes                                                                                            |
+| ---------------------------- | --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| **`mysqldump` command**      | Whatever path you specify with `>`                                    | Example: `mysqldump -u root -p appdb > /home/gyan/appdb.sql` → dump is in `/home/gyan/appdb.sql` |
+| **`mysqlpump` command**      | Whatever path you specify with `--result-file`                        | Similar idea                                                                                     |
+| **`phpMyAdmin` export**      | Browser download directory                                            | Usually `Downloads/` folder                                                                      |
+| **Automated backup scripts** | Check `/var/backups/mysql/`, `/backups/`, `/opt/mysql_backups/`, etc. | Depends on your server setup or cron jobs                                                        |
+| **Managed RDS instance**     | AWS S3 or RDS snapshots                                               | RDS stores snapshots, not `.sql` dumps, unless exported manually                                 |
+
+---
+
+### 3. **How to check if dumps already exist:**
+
+If you’re on Linux, you can search for `.sql` dump files like this:
+
+```bash
+sudo find / -type f -name "*.sql" 2>/dev/null
+```
+
+Or, if you know roughly where backups might be stored:
+
+```bash
+sudo find /var/backups /home -type f -name "*.sql"
+```
+
+---
+
+### 4. **To create a new dump manually:**
+
+```bash
+mysqldump -u root -p appdb > /path/to/save/appdb.sql
+```
+
+You’ll be prompted for your password, and then the dump file will be created in the location you specify.
+
+---
