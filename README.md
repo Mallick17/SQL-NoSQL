@@ -694,7 +694,10 @@ This guide assumes you have basic familiarity with command-line tools. If you're
 
 ### Step-by-Step Guide to Import the Employees Database into a MySQL Container
 
-This guide provides a clean and organized process to import the Employees Database into a MySQL container (e.g., `mysql:8.0`), addressing the issue with the `employees.sql` script where `source` commands incorrectly reference `.dump` files (raw tab-separated data) instead of using `LOAD DATA LOCAL INFILE`. The steps account for container-specific nuances like file paths and permissions, ensuring the database (with ~300,024 employee records and ~2.8M salary entries, ~167 MB) is set up with proper constraints (primary keys, foreign keys). The import may take 5-30 minutes. The modification of `employees.sql` is moved to immediately follow cloning the repository for clarity.
+This guide provides a clean and organized process to import the Employees Database into a MySQL container (e.g., `mysql:8.0`), addressing the issue with the `employees.sql` script where `source` commands incorrectly reference `.dump` files (raw tab-separated data) instead of using `LOAD DATA LOCAL INFILE`. The steps account for container-specific nuances like file paths and permissions, ensuring the database (with ~300,024 employee records and ~2.8M salary entries, ~167 MB) is set up with proper constraints (primary keys, foreign keys). The import may take 30-60sec. The modification of `employees.sql` is moved to immediately follow cloning the repository for clarity.
+
+<details>
+    <summary>Click to view Step-by-Step Guide to Import the Employees Database into a MySQL Container</summary>
 
 #### Prerequisites
 - **Docker and MySQL Container**: A running MySQL container. Start one if needed:
@@ -1524,3 +1527,7 @@ This documentation captures the errors faced, their root causes, and the precise
 </details>
 
 If issues persist, share error outputs or specific issues with `ola_create_and_load.sql`. For other databases (e.g., Sakila, World), adapt this process using dumps from https://dev.mysql.com/doc/index-other.html.
+
+</details>
+
+---
