@@ -677,65 +677,28 @@ This guide provides a clean and organized process to import the Employees Databa
      Replace the `source` section (near the end) with:
      ```
      SELECT 'LOADING departments' as 'INFO';
-     LOAD DATA LOCAL INFILE '/var/lib/mysql-files/load_departments.dump'
-     INTO TABLE departments
-     FIELDS TERMINATED BY '\t'
-     LINES TERMINATED BY '\n'
-     (dept_no, dept_name);
+     source /var/lib/mysql-files/load_departments.dump;
 
      SELECT 'LOADING employees' as 'INFO';
-     LOAD DATA LOCAL INFILE '/var/lib/mysql-files/load_employees.dump'
-     INTO TABLE employees
-     FIELDS TERMINATED BY '\t'
-     LINES TERMINATED BY '\n'
-     (emp_no, birth_date, first_name, last_name, gender, hire_date);
+     source /var/lib/mysql-files/load_employees.dump;
 
      SELECT 'LOADING dept_emp' as 'INFO';
-     LOAD DATA LOCAL INFILE '/var/lib/mysql-files/load_dept_emp.dump'
-     INTO TABLE dept_emp
-     FIELDS TERMINATED BY '\t'
-     LINES TERMINATED BY '\n'
-     (emp_no, dept_no, from_date, to_date);
+     source /var/lib/mysql-files/load_dept_emp.dump;
 
      SELECT 'LOADING dept_manager' as 'INFO';
-     LOAD DATA LOCAL INFILE '/var/lib/mysql-files/load_dept_manager.dump'
-     INTO TABLE dept_manager
-     FIELDS TERMINATED BY '\t'
-     LINES TERMINATED BY '\n'
-     (emp_no, dept_no, from_date, to_date);
+     source /var/lib/mysql-files/load_dept_manager.dump;
 
      SELECT 'LOADING titles' as 'INFO';
-     LOAD DATA LOCAL INFILE '/var/lib/mysql-files/load_titles.dump'
-     INTO TABLE titles
-     FIELDS TERMINATED BY '\t'
-     LINES TERMINATED BY '\n'
-     (emp_no, title, from_date, @to_date)
-     SET to_date = NULLIF(@to_date, '9999-01-01');
+     source /var/lib/mysql-files/load_titles.dump;
 
      SELECT 'LOADING salaries' as 'INFO';
-     LOAD DATA LOCAL INFILE '/var/lib/mysql-files/load_salaries1.dump'
-     INTO TABLE salaries
-     FIELDS TERMINATED BY '\t'
-     LINES TERMINATED BY '\n'
-     (emp_no, salary, from_date, @to_date)
-     SET to_date = NULLIF(@to_date, '9999-01-01');
+     source /var/lib/mysql-files/load_salaries1.dump;
+     source /var/lib/mysql-files/load_salaries2.dump;
+     source /var/lib/mysql-files/load_salaries3.dump;
 
-     LOAD DATA LOCAL INFILE '/var/lib/mysql-files/load_salaries2.dump'
-     INTO TABLE salaries
-     FIELDS TERMINATED BY '\t'
-     LINES TERMINATED BY '\n'
-     (emp_no, salary, from_date, @to_date)
-     SET to_date = NULLIF(@to_date, '9999-01-01');
-
-     LOAD DATA LOCAL INFILE '/var/lib/mysql-files/load_salaries3.dump'
-     INTO TABLE salaries
-     FIELDS TERMINATED BY '\t'
-     LINES TERMINATED BY '\n'
-     (emp_no, salary, from_date, @to_date)
-     SET to_date = NULLIF(@to_date, '9999-01-01');
-
-     source show_elapsed.sql ;
+     source /tmp/test_db/show_elapsed.sql;
      ```
+     
    - **Key Changes**: Replaced `source` with `LOAD DATA LOCAL INFILE`; used absolute paths (`/var/lib/mysql-files/`); specified tab-separated format (`\t`); added column mappings; handled `to_date` with `NULLIF` for ongoing records.
    - Save and exit the editor.
 
