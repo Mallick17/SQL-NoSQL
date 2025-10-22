@@ -635,237 +635,219 @@ The Employees Database is a sample MySQL database for HR/employee management, co
 
 This guide assumes you have basic familiarity with command-line tools. If you're new, use a tool like MySQL Workbench for a graphical interface to import the SQL file instead of the command line.
 
-<details>
-    <summary>Click to view the Prerequisites and Steps to Execute</summary>
+### Step-by-Step Guide to Import the Employees Database into a MySQL Container
+
+This guide provides a clean and organized process to import the Employees Database into a MySQL container (e.g., `mysql:8.0`), addressing the issue with the `employees.sql` script where `source` commands incorrectly reference `.dump` files (raw tab-separated data) instead of using `LOAD DATA LOCAL INFILE`. The steps account for container-specific nuances like file paths and permissions, ensuring the database (with ~300,024 employee records and ~2.8M salary entries, ~167 MB) is set up with proper constraints (primary keys, foreign keys). The import may take 5-30 minutes. The modification of `employees.sql` is moved to immediately follow cloning the repository for clarity.
 
 #### Prerequisites
-- **MySQL Installed**: You need MySQL Server version 5.0 or higher. Download and install from the official site (https://dev.mysql.com/downloads/) if you don't have it. For Windows/Mac/Linux, follow the OS-specific instructions.
-- **User Privileges**: Log in as a MySQL user with privileges like SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, RELOAD, REFERENCES, INDEX, ALTER, SHOW DATABASES, CREATE TEMPORARY TABLES, LOCK TABLES, EXECUTE, and CREATE VIEW. The root user typically has these.
-- **Disk Space and Resources**: Ensure at least 500 MB free disk space (for the data and indexes). The import may take 5-30 minutes depending on your hardware, as it's a large dataset.
-- **Enable Local Infile (if needed)**: The script uses `LOAD DATA LOCAL INFILE` to load data from accompanying .dump files. If you encounter errors, add `--local-infile=1` to your mysql command, and ensure the server allows it (check with `SHOW GLOBAL VARIABLES LIKE 'local_infile';`—set to ON via `SET GLOBAL local_infile = 1;` if needed, but restart may be required).
-- **Git (Optional)**: For cloning the repo. If not installed, download the ZIP instead.
-
-#### Step 1: Download the Repository
-- Go to https://github.com/datacharmer/test_db.
-- **Option A (Recommended - Clone with Git)**:
-  - Open a terminal or command prompt.
-  - Run: `git clone https://github.com/datacharmer/test_db.git`
-  - This downloads the entire repo, including the `employees.sql` script and necessary .dump files (e.g., employees.dump).
-- **Option B (Download ZIP)**:
-  - Click the green "Code" button on the GitHub page and select "Download ZIP".
-  - Extract the ZIP file to a folder on your computer (e.g., `C:\test_db` on Windows or `~/test_db` on macOS/Linux).
-
-#### Step 2: Navigate to the Repository Folder
-- In your terminal/command prompt, change directory to the downloaded folder:
-  - `cd test_db` (if cloned) or `cd path/to/extracted/folder` (if ZIP).
-- Verify contents: You should see files like `employees.sql`, `employees_partitioned.sql`, `test_employees_md5.sql`, and several .dump.gz files (these contain the actual data).
-
-#### Step 3: Start MySQL Server (If Not Running)
-- Ensure your MySQL server is running:
-  - On Windows: Use Services app or run `net start mysql`.
-  - On macOS/Linux: Run `sudo service mysql start` or `brew services start mysql` (if using Homebrew).
-- Log in to MySQL to test: `mysql -u root -p` (enter password when prompted). Exit with `exit;`.
-
-#### Step 4: Import the Database
-- From the repository folder, run the import command:
-  - Standard version (non-partitioned tables):
-    ```
-    mysql -u root -p < employees.sql
-    ```
-  - Partitioned version (for better performance with large tables; recommended if your MySQL supports partitioning):
-    ```
-    mysql -u root -p < employees_partitioned.sql
-    ```
-- Replace `root` with your username if different. You'll be prompted for the password.
-- The script will:
-  - Create a database named `employees`.
-  - Create tables with constraints (e.g., PRIMARY KEY on employee IDs, FOREIGN KEY links between tables like `dept_emp` referencing `employees` and `departments`).
-  - Load data using `LOAD DATA LOCAL INFILE` from the .dump files.
-- Wait for completion. If it fails (e.g., due to file paths), ensure you're in the correct directory, or use absolute paths in the SQL file (edit if needed).
-- Common Errors and Fixes:
-  - "The used command is not allowed with this MySQL version": Enable local_infile as mentioned in prerequisites.
-  - Timeout or memory issues: Increase MySQL's `max_allowed_packet` (e.g., add `--max_allowed_packet=256M` to the command) or run on a machine with more RAM.
-  - If using a hosted MySQL (e.g., RDS), upload files via SFTP and adjust import method.
-
-#### Step 5: Verify the Installation
-- Log in to MySQL: `mysql -u root -p`
-- Switch to the database: `USE employees;`
-- Check table counts: `SHOW TABLES;` (Should list 6 tables: departments, dept_emp, dept_manager, employees, salaries, titles).
-- Check row counts: e.g., `SELECT COUNT(*) FROM employees;` (Should be ~300,024).
-- Run the built-in test script from the repo folder:
-  - `mysql -u root -p -t < test_employees_md5.sql` (or `test_employees_sha.sql` for SHA checksums).
-  - Output should show "OK" for all tables, confirming data integrity (e.g., expected vs. found records and checksums match).
-
-#### Step 6: Explore and Use the Database
-- Run sample queries: e.g., `SELECT * FROM employees LIMIT 10;`
-- For optimization practice: Try joins like `SELECT e.first_name, s.salary FROM employees e JOIN salaries s ON e.emp_no = s.emp_no WHERE s.salary > 100000;`
-- Documentation: Refer to https://dev.mysql.com/doc/employee/en/ for schema details and examples.
-- If you need to drop and reload: `DROP DATABASE employees;` then repeat Step 4.
-
-If you encounter issues, check MySQL error logs (e.g., `SHOW ERRORS;`) or search for specific errors online. This setup is great for practicing with real-world-scale data! If you're using a different DBMS (e.g., PostgreSQL), conversions exist but aren't covered here.
-
-</details>
-
-
-Great, you're running MySQL in a container, have downloaded the Employees Database repository, verified the files (e.g., `employees.sql`, `.dump.gz` files), and are in the correct directory. I'll provide a step-by-step guide tailored for executing the `employees.sql` import within a container environment (assuming Docker with a MySQL image). This will include creating the database, loading the data, and verifying the setup, accounting for container-specific nuances like file paths and permissions.
-
-### Step-by-Step Guide to Migrate the Dump, the Employees Database in a MySQL Container
-
-<details>
-    <summary>Click to view the step by step guide</summary>
-
-#### Prerequisites
-- **Docker and MySQL Container**: You have a running MySQL container (e.g., `mysql:8.0` or similar). If not, start one with:
+- **Docker and MySQL Container**: A running MySQL container. Start one if needed:
   ```
   docker run --name mysql-container -e MYSQL_ROOT_PASSWORD=your_password -d -p 3306:3306 mysql:8.0
   ```
-  Replace `your_password` with a secure password.
-- **Repository Files**: You're in the `test_db` directory with files like `employees.sql` and `.dump.gz` files.
-- **Container Access**: You can execute commands inside the container or from the host.
-- **Local Infile Enabled**: The Employees Database uses `LOAD DATA LOCAL INFILE`. Ensure `local_infile` is enabled in your MySQL container (we'll verify and set this).
+  Replace `your_password` with a secure password. Use your container name (e.g., `mysql-container`).
+- **Repository Files**: The `test_db` repository from https://github.com/datacharmer/test_db, containing `employees.sql` and `.dump` files (e.g., `load_departments.dump`).
+- **User Privileges**: Root user access with full privileges (e.g., CREATE, INSERT, FOREIGN KEY).
+- **Disk Space**: At least 500 MB free for data and indexes.
+- **Local Infile**: Enabled for `LOAD DATA LOCAL INFILE` (verified in steps).
+- **Git**: Installed on the host for cloning (or download ZIP).
+- **Container Access**: Ability to run `docker cp` and `docker exec`.
 
-#### Step 1: Verify MySQL Container Status
+#### Step 1: Clone the Repository and Modify `employees.sql`
+1. **Clone the Repository on the Host**:
+   ```
+   git clone https://github.com/datacharmer/test_db.git
+   ```
+   Or download the ZIP from https://github.com/datacharmer/test_db, then extract it.
+2. **Navigate to the Folder**:
+   ```
+   cd test_db
+   ```
+3. **Verify Files**:
+   ```
+   ls
+   ```
+   Expect `employees.sql`, `load_departments.dump`, etc.
+4. **Modify `employees.sql`**:
+   The script uses `source` commands, which expect SQL files, but the `.dump` files are raw tab-separated data. Edit `employees.sql` to use `LOAD DATA LOCAL INFILE`.
+   - Backup the file:
+     ```
+     cp employees.sql employees.sql.bak
+     ```
+   - Edit with a text editor (e.g., `nano employees.sql` on the host):
+     Replace the `source` section (near the end) with:
+     ```
+     SELECT 'LOADING departments' as 'INFO';
+     LOAD DATA LOCAL INFILE '/var/lib/mysql-files/load_departments.dump'
+     INTO TABLE departments
+     FIELDS TERMINATED BY '\t'
+     LINES TERMINATED BY '\n'
+     (dept_no, dept_name);
+
+     SELECT 'LOADING employees' as 'INFO';
+     LOAD DATA LOCAL INFILE '/var/lib/mysql-files/load_employees.dump'
+     INTO TABLE employees
+     FIELDS TERMINATED BY '\t'
+     LINES TERMINATED BY '\n'
+     (emp_no, birth_date, first_name, last_name, gender, hire_date);
+
+     SELECT 'LOADING dept_emp' as 'INFO';
+     LOAD DATA LOCAL INFILE '/var/lib/mysql-files/load_dept_emp.dump'
+     INTO TABLE dept_emp
+     FIELDS TERMINATED BY '\t'
+     LINES TERMINATED BY '\n'
+     (emp_no, dept_no, from_date, to_date);
+
+     SELECT 'LOADING dept_manager' as 'INFO';
+     LOAD DATA LOCAL INFILE '/var/lib/mysql-files/load_dept_manager.dump'
+     INTO TABLE dept_manager
+     FIELDS TERMINATED BY '\t'
+     LINES TERMINATED BY '\n'
+     (emp_no, dept_no, from_date, to_date);
+
+     SELECT 'LOADING titles' as 'INFO';
+     LOAD DATA LOCAL INFILE '/var/lib/mysql-files/load_titles.dump'
+     INTO TABLE titles
+     FIELDS TERMINATED BY '\t'
+     LINES TERMINATED BY '\n'
+     (emp_no, title, from_date, @to_date)
+     SET to_date = NULLIF(@to_date, '9999-01-01');
+
+     SELECT 'LOADING salaries' as 'INFO';
+     LOAD DATA LOCAL INFILE '/var/lib/mysql-files/load_salaries1.dump'
+     INTO TABLE salaries
+     FIELDS TERMINATED BY '\t'
+     LINES TERMINATED BY '\n'
+     (emp_no, salary, from_date, @to_date)
+     SET to_date = NULLIF(@to_date, '9999-01-01');
+
+     LOAD DATA LOCAL INFILE '/var/lib/mysql-files/load_salaries2.dump'
+     INTO TABLE salaries
+     FIELDS TERMINATED BY '\t'
+     LINES TERMINATED BY '\n'
+     (emp_no, salary, from_date, @to_date)
+     SET to_date = NULLIF(@to_date, '9999-01-01');
+
+     LOAD DATA LOCAL INFILE '/var/lib/mysql-files/load_salaries3.dump'
+     INTO TABLE salaries
+     FIELDS TERMINATED BY '\t'
+     LINES TERMINATED BY '\n'
+     (emp_no, salary, from_date, @to_date)
+     SET to_date = NULLIF(@to_date, '9999-01-01');
+
+     source show_elapsed.sql ;
+     ```
+   - **Key Changes**: Replaced `source` with `LOAD DATA LOCAL INFILE`; used absolute paths (`/var/lib/mysql-files/`); specified tab-separated format (`\t`); added column mappings; handled `to_date` with `NULLIF` for ongoing records.
+   - Save and exit the editor.
+
+#### Step 2: Verify Container Status
 1. Check if the MySQL container is running:
    ```
    docker ps
    ```
-   Look for your container (e.g., `mysql-container`). If not running, start it:
-   ```
-   docker start mysql-container
-   ```
-2. Get the container's name or ID for commands:
+   Start if needed: `docker start mysql-container`.
+2. Get container details:
    ```
    docker ps -a
    ```
 
-#### Step 2: Copy Repository Files to the Container
-Since you're running MySQL in a container, the `.sql` and `.dump.gz` files need to be accessible inside the container for `LOAD DATA LOCAL INFILE` to work.
-1. Copy the entire `test_db` folder to a directory in the container (e.g., `/tmp/test_db`):
+#### Step 3: Copy Files to the Container
+1. Copy the `test_db` folder to the container:
    ```
    docker cp ./test_db mysql-container:/tmp/test_db
    ```
-   This assumes your current host directory is `test_db`. Adjust the path if needed (e.g., `/path/to/test_db`).
-2. Verify files in the container:
-   ```
-   docker exec mysql-container ls /tmp/test_db
-   ```
-   You should see `employees.sql`, `employees_partitioned.sql`, `test_employees_md5.sql`, and `.dump.gz` files (e.g., `employees.dump`, `departments.dump`).
-
-#### Step 3: Log in to MySQL and Enable Local Infile
-1. Access the MySQL container's shell:
+2. Access the container shell:
    ```
    docker exec -it mysql-container bash
    ```
-2. Log in to MySQL inside the container:
+3. Verify files:
+   ```
+   ls -al /tmp/test_db
+   ```
+   Expect `employees.sql`, `load_departments.dump`, etc.
+
+#### Step 4: Enable Local Infile
+1. Log into MySQL:
    ```
    mysql -u root -p
    ```
-   Enter the `MYSQL_ROOT_PASSWORD` you set when starting the container.
-3. Check if `local_infile` is enabled:
+   Enter the root password.
+2. Check `local_infile`:
    ```
    SHOW GLOBAL VARIABLES LIKE 'local_infile';
    ```
-   If `Value` is `ON`, you're good. If `OFF`, enable it:
-   ```
-   SET GLOBAL local_infile = 1;
-   ```
-4. Exit MySQL (`exit;`) but stay in the container shell for now.
+   If `OFF`, enable it: `SET GLOBAL local_infile = 1;`.
+3. Exit MySQL: `exit;`.
 
-#### Step 4: Adjust File Permissions (If Needed)
-The `.dump.gz` files are loaded by `LOAD DATA LOCAL INFILE`, and MySQL needs read access.
-1. Inside the container, ensure the MySQL user can read the files:
+#### Step 5: Move and Set Permissions for `.dump` Files
+1. Move `.dump` files to `/var/lib/mysql-files` (for `secure_file_priv` compatibility):
    ```
-   chmod -R 644 /tmp/test_db/*.*
-   chown -R mysql:mysql /tmp/test_db
-   ```
-2. If you encounter permission errors later, you may need to adjust the MySQL configuration to allow reading from `/tmp/test_db`. Alternatively, move files to a MySQL-accessible directory like `/var/lib/mysql-files`:
-   ```
-   mv /tmp/test_db/* /var/lib/mysql-files/
-   chmod -R 644 /var/lib/mysql-files/*.*
+   mv /tmp/test_db/*.dump /var/lib/mysql-files/
+   chmod -R 644 /var/lib/mysql-files/*.dump
    chown -R mysql:mysql /var/lib/mysql-files
    ```
+2. Verify `secure_file_priv`:
+   ```
+   mysql -u root -p
+   SHOW VARIABLES LIKE 'secure_file_priv';
+   ```
+   If set to `/var/lib/mysql-files/`, proceed; if empty, `/tmp/test_db` may work.
 
-#### Step 5: Import the Employees Database
-1. From the container shell, run the import:
+#### Step 6: Run the Import
+1. From the container shell:
    ```
    mysql -u root -p --local-infile=1 < /tmp/test_db/employees.sql
    ```
-   - Use `--local-infile=1` to ensure `LOAD DATA LOCAL INFILE` works.
-   - Enter the root password when prompted.
-   - If you moved files to `/var/lib/mysql-files`, update the path in `employees.sql` (edit with `nano` or `vi` inside the container to point to `/var/lib/mysql-files`).
-2. Alternatively, run from the host (if you prefer not to work inside the container):
+   Or from the host:
    ```
    docker exec -i mysql-container mysql -u root -p --local-infile=1 < ./test_db/employees.sql
    ```
-   This pipes the SQL file into the container's MySQL.
-3. Wait for the import to complete (5-30 minutes, depending on hardware). The script:
-   - Creates the `employees` database.
-   - Sets up 6 tables (`employees`, `departments`, `dept_emp`, `dept_manager`, `salaries`, `titles`) with primary and foreign key constraints.
-   - Loads data from the `.dump.gz` files using `LOAD DATA LOCAL INFILE`.
+2. Monitor output (e.g., "LOADING departments"). The script creates the `employees` database, tables with PK/FK constraints, and loads data.
+3. For partitioned tables (better performance): Use `employees_partitioned.sql` instead (edit similarly if needed).
 
-#### Step 6: Verify the Import
-1. Log back into MySQL (inside container or via host):
+#### Step 7: Verify the Import
+1. Log into MySQL:
    ```
-   docker exec -it mysql-container mysql -u root -p
+   mysql -u root -p
    ```
-2. Switch to the database:
+2. Switch database: `USE employees;`
+3. List tables: `SHOW TABLES;` (Expect 8, including views like `current_dept_emp`).
+4. Check rows: `SELECT COUNT(*) FROM employees;` (~300,024); `SELECT COUNT(*) FROM salaries;` (~2,844,047).
+5. Run integrity test:
    ```
-   USE employees;
+   mysql -u root -p -t < /tmp/test_db/test_employees_md5.sql
    ```
-3. List tables:
-   ```
-   SHOW TABLES;
-   ```
-   Expected output: `departments`, `dept_emp`, `dept_manager`, `employees`, `salaries`, `titles`.
-4. Check row counts:
-   ```
-   SELECT COUNT(*) FROM employees;
-   ```
-   Should return ~300,024 rows.
-   ```
-   SELECT COUNT(*) FROM salaries;
-   ```
-   Should return ~2,844,047 rows.
-5. Run the integrity test:
-   - From the container shell:
-     ```
-     mysql -u root -p -t < /tmp/test_db/test_employees_md5.sql
-     ```
-   - Or from the host:
-     ```
-     docker exec -i mysql-container mysql -u root -p -t < ./test_db/test_employees_md5.sql
-     ```
-   - Look for "OK" for each table, confirming data integrity (matching row counts and checksums).
+   Expect "OK" for all tables.
 
-#### Step 7: Explore the Database
-- Run sample queries to test:
+#### Step 8: Explore the Database
+- Sample queries:
   ```
   SELECT * FROM employees LIMIT 10;
-  SELECT e.first_name, d.dept_name FROM employees e JOIN dept_emp de ON e.emp_no = de.emp_no JOIN departments d ON de.dept_no = d.dept_no LIMIT 10;
+  SELECT e.first_name, s.salary FROM employees e JOIN salaries s ON e.emp_no = s.emp_no LIMIT 10;
   ```
-- Schema details: See https://dev.mysql.com/doc/employee/en/employees-structure.html for table relationships (e.g., `dept_emp` links `employees` and `departments` via foreign keys).
-- If you want to use the partitioned version for better performance:
-  - Repeat Step 5 with `employees_partitioned.sql` instead (drop the database first if needed: `DROP DATABASE employees;`).
+- Documentation: https://dev.mysql.com/doc/employee/en/ for schema.
+- Drop/reload: `DROP DATABASE employees;` then repeat Step 6.
 
-#### Troubleshooting Common Issues
-- **"ERROR 1148: The used command is not allowed"**: Ensure `--local-infile=1` is used and `local_infile` is `ON` in MySQL (Step 3). If persistent, add `local_infile=1` to the MySQL config file (`/etc/mysql/my.cnf` in the container) and restart the container:
+#### Step 9: Apply to Your `ola_create_and_load.sql`
+- Copy CSV: `docker cp MOCK_DATA_10000_more.csv mysql-container:/var/lib/mysql-files/`
+- Copy script: `docker cp ola_create_and_load.sql mysql-container:/tmp/ola_create_and_load.sql`
+- Run: `mysql -u root -p --local-infile=1 < /tmp/ola_create_and_load.sql`
+- Ensure CSV path in script matches `/var/lib/mysql-files/MOCK_DATA_10000_more.csv`; apply permissions:
   ```
-  docker restart mysql-container
+  chmod 644 /var/lib/mysql-files/MOCK_DATA_10000_more.csv
+  chown mysql:mysql /var/lib/mysql-files/MOCK_DATA_10000_more.csv
   ```
-- **File Not Found**: Verify the `.dump.gz` files are in `/tmp/test_db` or `/var/lib/mysql-files`. Check paths in `employees.sql` (edit with `nano` if needed).
-- **Permission Denied**: Ensure files are readable (`chmod 644`) and owned by `mysql:mysql` (Step 4).
-- **Slow Import**: Large data takes time. If it fails, increase `max_allowed_packet`:
-  ```
-  SET GLOBAL max_allowed_packet = 268435456; -- 256MB
-  ```
-- **Connection Issues**: Ensure port 3306 is accessible (`docker ps` shows `0.0.0.0:3306->3306/tcp`).
 
-#### Optional: Access via GUI
-If you prefer a GUI, install MySQL Workbench on your host, connect to `localhost:3306` (or your container's IP/port), and import `employees.sql` via the "Server > Data Import" menu, pointing to the host path of `test_db`. Copy `.dump.gz` files to a container directory first, as above.
+#### Troubleshooting
+- **Local Infile Errors**: Add `local_infile=1` to `/etc/mysql/my.cnf`; restart container (`docker restart mysql-container`).
+- **File Not Found**: Verify paths in `employees.sql`; re-copy repo:
+  ```
+  docker cp ./test_db mysql-container:/tmp/test_db
+  ```
+- **Permission Denied**: Check `ls -al /var/lib/mysql-files/*.dump`.
+- **Data Format Issues**: Inspect with `head /var/lib/mysql-files/load_departments.dump`; adjust `FIELDS TERMINATED BY` (e.g., to `','`).
+- **Memory/Timeout**: Set `SET GLOBAL max_allowed_packet = 268435456;`.
+- **Logs**: `tail -n 50 /var/log/mysql/error.log`.
+- **Interactive Run**: `mysql -u root -p --local-infile=1`, then `SOURCE /tmp/test_db/employees.sql;`.
+- **GUI Access**: Use MySQL Workbench on host, connect to `localhost:3306`.
 
-#### Next Steps
-- Use this database to practice queries, joins, or optimization.
-- For additional databases, repeat the process with other dumps (e.g., Sakila, World from https://dev.mysql.com/doc/index-other.html) or create your own using your Ola_cab script as a template.
-- If you want to adapt your `ola_create_and_load.sql` for the container, copy it to the container and run similarly, ensuring the CSV path (`/var/lib/mysql-files/MOCK_DATA_10000_more.csv`) is accessible.
-
-</details>
+If issues persist, share error outputs or specific issues with `ola_create_and_load.sql`. For other databases (e.g., Sakila, World), adapt this process using dumps from https://dev.mysql.com/doc/index-other.html.
