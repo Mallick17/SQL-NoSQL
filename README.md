@@ -860,6 +860,296 @@ This guide provides a clean and organized process to import the Employees Databa
 - **Interactive Run**: `mysql -u root -p --local-infile=1`, then `SOURCE /tmp/test_db/employees.sql;`.
 - **GUI Access**: Use MySQL Workbench on host, connect to `localhost:3306`.
 
+
+<details>
+    <summary>Click to view Queries after the DB Setup</summary>
+
+Now that the Employees Database has been successfully migrated into the MySQL container with all tables correctly populated (e.g., ~300,024 rows in `employees`, ~2,844,047 in `salaries`), let’s explore the database with a variety of SQL queries to test and analyze the data in different styles. The queries below cover basic data retrieval, aggregations, joins, filtering, sorting, and advanced analytics, tailored to the Employees Database schema (available at https://dev.mysql.com/doc/employee/en/). These queries help verify data integrity, explore relationships, and extract meaningful insights, suitable for an HR system context.
+
+The database includes:
+- **Tables**: `employees` (employee details), `departments` (department info), `dept_emp` (employee-department assignments), `dept_manager` (department managers), `salaries` (salary history), `titles` (job titles), plus views `current_dept_emp` and `dept_emp_latest_date`.
+- **Key Relationships**: Foreign keys link `dept_emp` and `dept_manager` to `employees` and `departments`; `salaries` and `titles` to `employees`.
+
+Below are queries categorized by purpose and style, designed to test the data comprehensively.
+
+---
+
+### Queries to Test and Explore the Employees Database
+
+#### 1. Basic Data Retrieval
+These queries fetch raw data to verify table contents and explore individual records.
+
+- **Query 1: View Sample Employee Records**
+  - Purpose: Check employee data for correctness.
+  - Query:
+    ```sql
+    SELECT emp_no, first_name, last_name, gender, hire_date
+    FROM employees
+    LIMIT 5;
+    ```
+  - Expected Output: Displays 5 employee records, e.g.:
+    ```
+    +--------+------------+-----------+--------+------------+
+    | emp_no | first_name | last_name | gender | hire_date  |
+    +--------+------------+-----------+--------+------------+
+    | 10001  | Georgi     | Facello   | M      | 1986-06-26 |
+    | 10002  | Bezalel    | Simmel    | F      | 1985-11-21 |
+    | 10003  | Parto      | Bamford   | M      | 1986-08-28 |
+    | 10004  | Chirstian  | Koblick   | M      | 1986-12-01 |
+    | 10005  | Kyoichi    | Maliniak  | M      | 1989-09-12 |
+    +--------+------------+-----------+--------+------------+
+    ```
+
+- **Query 2: List All Departments**
+  - Purpose: Verify the `departments` table.
+  - Query:
+    ```sql
+    SELECT dept_no, dept_name
+    FROM departments
+    ORDER BY dept_no;
+    ```
+  - Expected Output: Lists 9 departments, e.g.:
+    ```
+    +---------+------------------+
+    | dept_no | dept_name        |
+    +---------+------------------+
+    | d001    | Marketing        |
+    | d002    | Finance          |
+    | d003    | Human Resources  |
+    ...
+    +---------+------------------+
+    ```
+
+#### 2. Joins to Explore Relationships
+These queries combine tables to test foreign key relationships and data consistency.
+
+- **Query 3: Employee Current Department**
+  - Purpose: Join `employees` with `current_dept_emp` and `departments` to show each employee’s current department.
+  - Query:
+    ```sql
+    SELECT e.emp_no, e.first_name, e.last_name, d.dept_name
+    FROM employees e
+    JOIN current_dept_emp cde ON e.emp_no = cde.emp_no
+    JOIN departments d ON cde.dept_no = d.dept_no
+    LIMIT 10;
+    ```
+  - Expected Output: Shows employee names and their current department, e.g.:
+    ```
+    +--------+------------+-----------+------------------+
+    | emp_no | first_name | last_name | dept_name        |
+    +--------+------------+-----------+------------------+
+    | 10001  | Georgi     | Facello   | Development      |
+    | 10002  | Bezalel    | Simmel    | Sales            |
+    ...
+    ```
+
+- **Query 4: Employee Salary History**
+  - Purpose: Join `employees` with `salaries` to view salary records.
+  - Query:
+    ```sql
+    SELECT e.emp_no, e.first_name, e.last_name, s.salary, s.from_date, s.to_date
+    FROM employees e
+    JOIN salaries s ON e.emp_no = s.emp_no
+    WHERE e.emp_no = 10001
+    ORDER BY s.from_date;
+    ```
+  - Expected Output: Shows salary history for employee 10001, e.g.:
+    ```
+    +--------+------------+-----------+--------+------------+------------+
+    | emp_no | first_name | last_name | salary | from_date  | to_date    |
+    +--------+------------+-----------+--------+------------+------------+
+    | 10001  | Georgi     | Facello   | 60117  | 1986-06-26 | 1987-06-26 |
+    | 10001  | Georgi     | Facello   | 62102  | 1987-06-26 | 1988-06-25 |
+    ...
+    ```
+
+#### 3. Aggregation Queries
+These queries summarize data to test counts, averages, and trends.
+
+- **Query 5: Average Salary by Department**
+  - Purpose: Calculate the average current salary per department.
+  - Query:
+    ```sql
+    SELECT d.dept_name, ROUND(AVG(s.salary), 2) AS avg_salary
+    FROM departments d
+    JOIN current_dept_emp cde ON d.dept_no = cde.dept_no
+    JOIN salaries s ON cde.emp_no = s.emp_no
+    WHERE s.to_date = '9999-01-01'
+    GROUP BY d.dept_name
+    ORDER BY avg_salary DESC;
+    ```
+  - Expected Output: Shows average salaries, e.g.:
+    ```
+    +------------------+------------+
+    | dept_name        | avg_salary |
+    +------------------+------------+
+    | Sales            | 80668.12   |
+    | Marketing        | 78890.45   |
+    ...
+    +------------------+------------+
+    ```
+
+- **Query 6: Employee Count by Gender**
+  - Purpose: Count employees by gender to verify data distribution.
+  - Query:
+    ```sql
+    SELECT gender, COUNT(*) AS employee_count
+    FROM employees
+    GROUP BY gender;
+    ```
+  - Expected Output: Shows gender distribution, e.g.:
+    ```
+    +--------+---------------+
+    | gender | employee_count |
+    +--------+---------------+
+    | M      | 180000        |
+    | F      | 120024        |
+    +--------+---------------+
+    ```
+
+#### 4. Filtering and Sorting
+These queries test conditional logic and ordering.
+
+- **Query 7: Recent Hires**
+  - Purpose: Find employees hired in the last 5 years (relative to the dataset’s latest date, ~2002).
+  - Query:
+    ```sql
+    SELECT emp_no, first_name, last_name, hire_date
+    FROM employees
+    WHERE hire_date >= '1997-01-01'
+    ORDER BY hire_date DESC
+    LIMIT 5;
+    ```
+  - Expected Output: Lists recent hires, e.g.:
+    ```
+    +--------+------------+-----------+------------+
+    | emp_no | first_name | last_name | hire_date  |
+    +--------+------------+-----------+------------+
+    | 499999 | Sachin     | Tsukuda   | 2000-01-28 |
+    ...
+    ```
+
+- **Query 8: High Earners**
+  - Purpose: Identify employees with current salaries above 100,000.
+  - Query:
+    ```sql
+    SELECT e.emp_no, e.first_name, e.last_name, s.salary
+    FROM employees e
+    JOIN salaries s ON e.emp_no = s.emp_no
+    WHERE s.salary > 100000 AND s.to_date = '9999-01-01'
+    ORDER BY s.salary DESC
+    LIMIT 5;
+    ```
+  - Expected Output: Shows top earners, e.g.:
+    ```
+    +--------+------------+-----------+--------+
+    | emp_no | first_name | last_name | salary |
+    +--------+------------+-----------+--------+
+    | 43624  | Tokuyasu   | Pesch     | 158220 |
+    ...
+    ```
+
+#### 5. Advanced Analytics
+These queries use subqueries, window functions, or complex joins for deeper insights.
+
+- **Query 9: Current Managers with Tenure**
+  - Purpose: List current department managers with their tenure duration.
+  - Query:
+    ```sql
+    SELECT d.dept_name, e.first_name, e.last_name, 
+           DATEDIFF(CURDATE(), dm.from_date) AS tenure_days
+    FROM dept_manager dm
+    JOIN employees e ON dm.emp_no = e.emp_no
+    JOIN departments d ON dm.dept_no = d.dept_no
+    WHERE dm.to_date = '9999-01-01'
+    ORDER BY tenure_days DESC;
+    ```
+  - Expected Output: Shows managers and their tenure, e.g.:
+    ```
+    +------------------+------------+-----------+-------------+
+    | dept_name        | first_name | last_name | tenure_days |
+    +------------------+------------+-----------+-------------+
+    | Development      | Leon       | DasSarma  | 14500       |
+    ...
+    ```
+
+- **Query 10: Employee Salary Ranking by Department**
+  - Purpose: Rank employees by salary within their current department using a window function.
+  - Query:
+    ```sql
+    SELECT e.emp_no, e.first_name, e.last_name, d.dept_name, s.salary,
+           RANK() OVER (PARTITION BY d.dept_no ORDER BY s.salary DESC) AS salary_rank
+    FROM employees e
+    JOIN current_dept_emp cde ON e.emp_no = cde.emp_no
+    JOIN departments d ON cde.dept_no = d.dept_no
+    JOIN salaries s ON e.emp_no = s.emp_no
+    WHERE s.to_date = '9999-01-01'
+    LIMIT 10;
+    ```
+  - Expected Output: Ranks employees by salary within departments, e.g.:
+    ```
+    +--------+------------+-----------+------------------+--------+-------------+
+    | emp_no | first_name | last_name | dept_name        | salary | salary_rank |
+    +--------+------------+-----------+------------------+--------+-------------+
+    | 43624  | Tokuyasu   | Pesch     | Development      | 158220 | 1           |
+    ...
+    ```
+
+#### 6. Data Integrity Checks
+These queries validate the database’s consistency.
+
+- **Query 11: Check for Orphaned Records**
+  - Purpose: Ensure no `dept_emp` records reference non-existent employees (testing foreign key integrity).
+  - Query:
+    ```sql
+    SELECT de.emp_no, de.dept_no
+    FROM dept_emp de
+    LEFT JOIN employees e ON de.emp_no = e.emp_no
+    WHERE e.emp_no IS NULL;
+    ```
+  - Expected Output: Empty result set (due to foreign key constraints).
+
+- **Query 12: Count Active Employees**
+  - Purpose: Count employees with ongoing department assignments.
+  - Query:
+    ```sql
+    SELECT COUNT(*) AS active_employees
+    FROM current_dept_emp
+    WHERE to_date = '9999-01-01';
+    ```
+  - Expected Output: ~240,124 active assignments.
+
+#### Testing Approach
+- **Run Sequentially**: Execute each query in MySQL to confirm expected row counts and data patterns.
+- **Validate Relationships**: Queries 3, 4, and 9 test joins and foreign keys.
+- **Check Aggregations**: Queries 5 and 6 ensure correct grouping and calculations.
+- **Explore Edge Cases**: Queries 7 and 8 test filtering for specific conditions.
+- **Use Analytics**: Queries 9 and 10 leverage advanced SQL for insights.
+- **Verify Integrity**: Queries 11 and 12 confirm data consistency.
+
+#### Running Queries
+1. Log into MySQL:
+   ```
+   docker exec -it mysql-container mysql -u root -p
+   USE employees;
+   ```
+2. Copy and paste each query, observing the output.
+3. Compare results with expected counts from `test_employees_md5.sql`:
+   ```
+   mysql -u root -p -t < /tmp/test_db/test_employees_md5.sql
+   ```
+
+#### Notes
+- **Schema Reference**: Use https://dev.mysql.com/doc/employee/en/ for table details.
+- **Performance**: For large joins (e.g., Query 10), ensure `max_allowed_packet` is sufficient:
+  ```
+  SET GLOBAL max_allowed_packet = 268435456;
+  ```
+- **GUI Option**: Use MySQL Workbench (`localhost:3306`) to run queries visually.
+- **Custom Analysis**: Adapt queries for specific HR needs, e.g., salary trends or promotion history.
+   
+</details>
+
 <details>
     <summary>Click to view the Errors Faced and issue solved</summary>
 
