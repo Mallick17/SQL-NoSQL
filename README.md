@@ -1822,9 +1822,5 @@ This design ensures that the exported SQL file is complete, portable, and mainta
    
 </details>
 
-
----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-You're absolutely correct! Let me clarify this important point:
-
-## **Yes, you're right - it's difficult (and often impractical) to dump just the data without the schema.**
+---
 
