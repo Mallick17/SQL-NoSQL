@@ -2799,7 +2799,7 @@ If you have a specific table or condition in mind (e.g., delete employees with c
 
 ---
 
-## Restoring only the missing rows
+## Restoring only the missing rows using a Particular Table Backup and Restore
 
 ### **Key Considerations**
 - **Do You Have a Backup?**: You need a recent `.sql` dump file (e.g., `employees_table.sql` or a full database dump) that contains the table’s data before the deletion occurred.
@@ -3070,6 +3070,259 @@ You don’t need to delete all rows and restore the entire table. Instead, you c
 - Identify missing rows using a `LEFT JOIN` query.
 - Export and restore only the missing rows with `mysqldump --where`.
 This approach preserves existing data and is more precise. If binary logs are enabled, you can also explore point-in-time recovery, but a dump file is usually easier to work with. Always maintain regular backups and test your restore process to ensure data integrity.
+
+</details>
+
+---
+
+## Restore the Missing Rows using the Entire DB Backup
+
+The best approach depends on whether you can identify the affected table and the nature of the missing data (e.g., missing `emp_no` rows in `employees` or missing department assignments in `dept_emp`). Since you’re unsure which department’s data is missing, we’ll assume the `employees` table or `dept_emp` (department assignments) is affected, as these are central to department-related data. The strategy will:
+1. Identify missing rows by comparing the current table with the backup.
+2. Extract relevant rows from the full dump (`employees_full_dump.sql`).
+3. Restore only those rows, handling foreign key constraints.
+
+Given the complexity of pinpointing deleted rows without specific details, we’ll use a practical method to restore missing data by leveraging the backup and MySQL tools, minimizing disruption to the existing database. Below is a step-by-step guide, tailored to your containerized setup, with alternatives if needed.
+
+### Best Approach: Restore Missing Rows Using the Full Database Dump
+
+#### Why This Approach?
+- **Leverages Existing Backup**: The `employees_full_dump.sql` contains all data (~300,024 rows in `employees`, ~2,844,047 in `salaries`, etc.), making it a reliable source to recover missing rows.
+- **Preserves Existing Data**: Instead of dropping the database, we selectively insert missing rows to avoid overwriting valid data.
+- **Handles Dependencies**: Disables foreign key checks to manage relationships (e.g., `dept_emp` references `employees`).
+- **Scalable**: Works for any table (e.g., `employees` or `dept_emp`) once the affected table is identified.
+
+<details>
+    <summary>Click to view Prerequisites and steps</summary>
+
+#### Prerequisites
+- **Source Container**: `mysql-container` (MySQL 8.0.43, port 3306) with the `employees` database, where data is missing.
+- **Backup File**: `employees_full_dump.sql` (~167-200 MB) in `~/backups/` on the host.
+- **Reference Container**: `new-mysql-container` (port 3307) with the full database (optional, for comparison).
+- **Tools**: `mysqldump`, `mysql`, Docker, `grep`/`sed` for processing dumps.
+- **Disk Space**: ~20 MB for temporary table dumps.
+
+#### Step 1: Identify the Affected Table and Missing Data
+1. **Access MySQL in `mysql-container`**:
+   ```
+   docker exec -it mysql-container mysql -u root -p
+   ```
+   - Enter the root password.
+2. **Check Table Row Counts**:
+   - Compare current counts with expected counts (from the backup or schema documentation):
+     ```
+     USE employees;
+     SELECT table_name, table_rows
+     FROM information_schema.tables
+     WHERE table_schema = 'employees';
+     ```
+     - Expected counts (approximate):
+       - `employees`: ~300,024
+       - `dept_emp`: ~331,603
+       - `salaries`: ~2,844,047
+       - `departments`: ~9
+       - `dept_manager`: ~24
+       - `titles`: ~443,308
+   - If `employees` or `dept_emp` shows significantly fewer rows (e.g., `employees` has 200,000 rows), it’s likely affected.
+3. **Check Department Data** (since you mentioned departments):
+   ```
+   SELECT dept_no, dept_name, (SELECT COUNT(*) FROM dept_emp WHERE dept_no = d.dept_no) AS employee_count
+   FROM departments d;
+   ```
+   - Look for departments with unexpectedly low `employee_count` (e.g., `d001` should have ~20,000+).
+4. **Assume `employees` is Affected**:
+   - If unsure, focus on `employees` (primary table) or `dept_emp` (department assignments), as these are critical for department data.
+5. **Exit MySQL**:
+   ```
+   exit
+   ```
+
+#### Step 2: Extract the `employees` Table from the Full Dump
+Since the full dump (`employees_full_dump.sql`) contains all tables, we’ll extract the `employees` table’s data to restore missing rows.
+
+1. **Copy the Full Dump to Host** (if not already there):
+   ```
+   ls -al ~/backups/employees_full_dump.sql
+   ```
+   - If compressed, decompress:
+     ```
+     gunzip ~/backups/employees_full_dump.sql.gz
+     ```
+2. **Extract `employees` Table Data**:
+   - On the host, use `grep` and `sed` to isolate the `employees` table’s `INSERT` statements:
+     ```
+     grep -A 1000000 "Table structure for table \`employees\`" ~/backups/employees_full_dump.sql | sed -n '/INSERT INTO `employees`/p' > employees_data_only.sql
+     ```
+     - This creates `employees_data_only.sql` with only `INSERT INTO employees` statements (no `CREATE TABLE`).
+   - Verify:
+     ```
+     head -n 20 employees_data_only.sql
+     ```
+     - Expect: Lines starting with `INSERT INTO `employees` VALUES ...`.
+
+#### Step 3: Identify Missing Rows
+1. **Copy Data to Container**:
+   ```
+   docker cp ./employees_data_only.sql mysql-container:/var/lib/mysql-files/employees_data_only.sql
+   ```
+2. **Access MySQL**:
+   ```
+   docker exec -it mysql-container mysql -u root -p
+   ```
+3. **Create a Temporary Table**:
+   - Load the backup data into a temporary table to compare:
+     ```
+     USE employees;
+     CREATE TABLE temp_employees LIKE employees;
+     SET FOREIGN_KEY_CHECKS = 0;
+     SOURCE /var/lib/mysql-files/employees_data_only.sql;
+     SET FOREIGN_KEY_CHECKS = 1;
+     ```
+   - This loads all ~300,024 rows into `temp_employees`.
+4. **Find Missing Rows**:
+   - Identify `emp_no` values missing in `employees` but present in `temp_employees`:
+     ```
+     SELECT t.emp_no
+     FROM temp_employees t
+     LEFT JOIN employees e ON t.emp_no = e.emp_no
+     WHERE e.emp_no IS NULL;
+     ```
+   - Save missing `emp_no` values (e.g., to a file or note count):
+     ```
+     SELECT t.emp_no INTO OUTFILE '/var/lib/mysql-files/missing_employees.txt'
+     FROM temp_employees t
+     LEFT JOIN employees e ON t.emp_no = e.emp_no
+     WHERE e.emp_no IS NULL;
+     ```
+
+#### Step 4: Restore Missing Rows
+1. **Extract Missing Rows from Backup**:
+   - On the host, filter `employees_data_only.sql` for missing `emp_no` values (requires scripting if many rows):
+     - Copy `missing_employees.txt` to host:
+       ```
+       docker cp mysql-container:/var/lib/mysql-files/missing_employees.txt ./missing_employees.txt
+       ```
+     - Use a script (e.g., Python) to filter `INSERT` statements:
+       ```python
+       #!/usr/bin/python3
+       missing_ids = set()
+       with open('missing_employees.txt', 'r') as f:
+           missing_ids = {line.strip() for line in f}
+       with open('employees_data_only.sql', 'r') as f, open('employees_missing_rows.sql', 'w') as out:
+           for line in f:
+               if any(f"('{id}'," in line for id in missing_ids):
+                   out.write(line)
+       ```
+     - Run:
+       ```
+       python3 filter_missing_rows.py
+       ```
+     - Creates `employees_missing_rows.sql` with `INSERT` statements for missing rows.
+2. **Copy to Container**:
+   ```
+   docker cp ./employees_missing_rows.sql mysql-container:/var/lib/mysql-files/employees_missing_rows.sql
+   ```
+3. **Import Missing Rows**:
+   ```
+   docker exec -it mysql-container mysql -u root -p
+   ```
+   ```
+   USE employees;
+   SET FOREIGN_KEY_CHECKS = 0;
+   SOURCE /var/lib/mysql-files/employees_missing_rows.sql;
+   SET FOREIGN_KEY_CHECKS = 1;
+   ```
+   - Or from host:
+     ```
+     docker exec -i mysql-container mysql -u root -p employees < ./employees_missing_rows.sql
+     ```
+
+#### Step 5: Verify Restoration
+1. **Check Row Counts**:
+   ```
+   SELECT COUNT(*) FROM employees;  -- Should be ~300,024
+   ```
+2. **Verify Department Data**:
+   ```
+   SELECT d.dept_name, COUNT(de.emp_no) AS employee_count
+   FROM departments d
+   LEFT JOIN dept_emp de ON d.dept_no = de.dept_no
+   GROUP BY d.dept_name;
+   ```
+   - Compare with expected counts (e.g., `Development` ~85,000).
+3. **Run Integrity Test**:
+   ```
+   docker cp ~/test_db/test_employees_md5.sql mysql-container:/var/lib/mysql-files/test_employees_md5.sql
+   mysql -u root -p -t < /var/lib/mysql-files/test_employees_md5.sql
+   ```
+   - Expect: "OK" for `employees`.
+4. **Drop Temporary Table**:
+   ```
+   DROP TABLE temp_employees;
+   ```
+
+#### Step 6: Cleanup and Prevention
+1. **Exit MySQL**:
+   ```
+   exit
+   ```
+2. **Archive Files**:
+   ```
+   mv ./employees_missing_rows.sql ~/backups/
+   tar -czf ~/backups/employees_recovery.tar.gz ~/backups/employees_missing_rows.sql
+   ```
+3. **Prevent Future Loss**:
+   - Enable binary logging:
+     - Edit `/etc/mysql/my.cnf` in the container:
+       ```
+       docker cp mysql-container:/etc/mysql/my.cnf ./my.cnf
+       # Add: log_bin = /var/log/mysql/mysql-bin.log
+       docker cp ./my.cnf mysql-container:/etc/mysql/my.cnf
+       docker restart mysql-container
+       ```
+   - Schedule daily backups:
+     ```
+     0 2 * * * docker exec mysql-container mysqldump -u root -pYOUR_PASSWORD --databases employees > /var/lib/mysql-files/backup_$(date +%Y%m%d).sql
+     ```
+
+#### Troubleshooting
+- **Foreign Key Errors**:
+  - Ensure `SET FOREIGN_KEY_CHECKS = 0` during import.
+- **Duplicate Rows**:
+  - Use `INSERT IGNORE` or check for duplicates:
+    ```
+    INSERT IGNORE INTO employees SELECT * FROM temp_employees;
+    ```
+- **File Not Found**:
+  - Verify:
+    ```
+    ls -al /var/lib/mysql-files/employees_missing_rows.sql
+    ```
+- **Slow Import**:
+  - Increase memory:
+    ```
+    SET GLOBAL max_allowed_packet = 268435456;
+    ```
+- **Logs**:
+  - Check:
+    ```
+    tail -n 50 /var/log/mysql/error.log
+    ```
+
+#### Alternative: If `dept_emp` is Affected
+If the missing data is in `dept_emp` (department assignments):
+1. Extract `dept_emp` from the full dump:
+   ```
+   grep -A 1000000 "Table structure for table \`dept_emp\`" ~/backups/employees_full_dump.sql | sed -n '/INSERT INTO `dept_emp`/p' > dept_emp_data_only.sql
+   ```
+2. Compare and restore as in Steps 3-4, using `temp_dept_emp` table.
+
+#### Why This is Best
+- **Targeted Restoration**: Restores only missing rows, preserving existing data.
+- **Uses Existing Backup**: Leverages `employees_full_dump.sql` without needing binlogs.
+- **Handles Dependencies**: Disables foreign keys to avoid conflicts.
+- **Verifiable**: Integrity tests ensure correctness.
+
 
 </details>
 
