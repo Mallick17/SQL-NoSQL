@@ -2351,6 +2351,220 @@ This process builds on the previous successful full database dump and restore, f
 
 This process successfully deletes the `employees` table, backs up specific tables, and restores them, ensuring data integrity and compatibility with the `employees` database’s schema and relationships. If issues arise, share error outputs for further assistance!
 
+
+<details>
+    <summary>Click to view for the particular table backup and restore</summary>
+
+### Clarification: Why Multiple Tables Were Suggested
+The previous response included `employees`, `departments`, and `salaries` in the dump for the following reasons (based on the provided document and database structure):
+1. **Foreign Key Dependencies**: The `employees` table is referenced by `salaries`, `titles`, `dept_emp`, and `dept_manager` via foreign keys. Dumping related tables ensures that dependencies are preserved, especially if other tables might be affected or needed in the target environment.
+2. **Context from Provided Document**: The document emphasized scenarios for dumping multiple tables (e.g., `mysqldump employees employees departments salaries`), suggesting a broader approach for robustness.
+3. **Practical Scenario**: In real-world cases, restoring a single table like `employees` often requires related tables to maintain referential integrity, especially in a database like `employees` with interconnected relationships.
+
+However, since the task specifically involves deleting and restoring only the `employees` table, we can streamline the process to focus solely on this table. We’ll use the `new-mysql-container` (where the full database exists) to dump the `employees` table and restore it in `mysql-container` where it was deleted. We’ll also handle foreign key constraints carefully, as other tables depend on `employees`.
+
+---
+
+### Revised Step-by-Step Guide: Delete, Back Up, and Restore the `employees` Table
+
+#### Objective
+Delete the `employees` table in the original container (`mysql-container`), back up only the `employees` table from the new container (`new-mysql-container`), and restore it in the original container, ensuring data integrity and handling foreign key dependencies.
+
+#### Prerequisites
+- **Source Container**: `mysql-container` (MySQL 8.0.43, port 3306) with the `employees` database, where the `employees` table will be deleted.
+- **New Container**: `new-mysql-container` (port 3307) with the full `employees` database intact.
+- **Table**: `employees` (~300,024 rows).
+- **Tools**: `mysqldump`, `mysql`, Docker.
+- **Disk Space**: ~20 MB for the `employees` table dump.
+
+#### Step 1: Delete the `employees` Table in the Original Container
+1. **Access MySQL in `mysql-container`**:
+   ```
+   docker exec -it mysql-container mysql -u root -p
+   ```
+   - Enter the root password.
+2. **Disable Foreign Key Checks**:
+   - Since `employees` is referenced by `salaries`, `titles`, `dept_emp`, and `dept_manager`, disable foreign keys:
+     ```
+     SET FOREIGN_KEY_CHECKS = 0;
+     ```
+3. **Delete the `employees` Table**:
+   ```
+   USE employees;
+   DROP TABLE employees;
+   ```
+4. **Re-enable Foreign Key Checks**:
+   ```
+   SET FOREIGN_KEY_CHECKS = 1;
+   ```
+5. **Verify Deletion**:
+   ```
+   SHOW TABLES;
+   SELECT COUNT(*) FROM employees;
+   ```
+   - Expect: `employees` missing from `SHOW TABLES`; `SELECT` query fails with `Table 'employees.employees' doesn't exist`.
+6. **Exit MySQL**:
+   ```
+   exit;
+   ```
+
+#### Step 2: Back Up the `employees` Table from the New Container
+1. **Access the New Container Shell**:
+   ```
+   docker exec -it new-mysql-container bash
+   ```
+   - The `new-mysql-container` has the full `employees` database, including the `employees` table.
+2. **Create the Table Dump**:
+   - Dump only the `employees` table:
+     ```
+     mysqldump -u root -p employees employees --single-transaction > /var/lib/mysql-files/employees_only.sql
+     ```
+     - **Options**:
+       - `-u root`: Root user.
+       - `-p`: Prompts for password.
+       - `employees employees`: Specifies the database and table.
+       - `--single-transaction`: Ensures consistency without locking.
+       - Output: `/var/lib/mysql-files/employees_only.sql` (~17-20 MB).
+     - Enter the root password.
+3. **Verify the Dump File**:
+   ```
+   ls -al /var/lib/mysql-files/employees_only.sql
+   head -n 20 /var/lib/mysql-files/employees_only.sql
+   ```
+   - Expected: Starts with `-- MySQL dump`, `USE employees;`, `CREATE TABLE employees`, and `INSERT INTO employees` statements.
+4. **Set Permissions**:
+   ```
+   chmod 644 /var/lib/mysql-files/employees_only.sql
+   chown mysql:mysql /var/lib/mysql-files/employees_only.sql
+   ```
+
+#### Step 3: Transfer the Dump to the Local Machine
+1. **Exit the Container**:
+   ```
+   exit
+   ```
+2. **Copy to Host**:
+   ```
+   docker cp new-mysql-container:/var/lib/mysql-files/employees_only.sql ./employees_only.sql
+   ```
+3. **Verify Locally**:
+   ```
+   ls -al ./employees_only.sql
+   head -n 20 ./employees_only.sql
+   ```
+4. **Optional: Compress for Storage**:
+   ```
+   gzip ./employees_only.sql
+   ```
+   - Creates `employees_only.sql.gz`.
+
+#### Step 4: Restore the `employees` Table in the Original Container
+1. **Copy the Dump File**:
+   - If compressed, decompress:
+     ```
+     gunzip ./employees_only.sql.gz
+     ```
+   - Copy to `mysql-container`:
+     ```
+     docker cp ./employees_only.sql mysql-container:/var/lib/mysql-files/employees_only.sql
+     ```
+2. **Access the Original Container**:
+   ```
+   docker exec -it mysql-container bash
+   ```
+3. **Set Permissions**:
+   ```
+   chmod 644 /var/lib/mysql-files/employees_only.sql
+   chown mysql:mysql /var/lib/mysql-files/employees_only.sql
+   ```
+4. **Import the Dump**:
+   - Log into MySQL:
+     ```
+     mysql -u root -p
+     ```
+   - Disable foreign key checks (to avoid conflicts with dependent tables like `salaries`):
+     ```
+     SET FOREIGN_KEY_CHECKS = 0;
+     ```
+   - Import:
+     ```
+     USE employees;
+     SOURCE /var/lib/mysql-files/employees_only.sql;
+     ```
+   - Or from the host:
+     ```
+     docker exec -i mysql-container mysql -u root -p employees < ./employees_only.sql
+     ```
+   - Re-enable foreign keys:
+     ```
+     SET FOREIGN_KEY_CHECKS = 1;
+     ```
+   - Import time: ~1-2 minutes.
+5. **Verify Restoration**:
+   ```
+   SHOW TABLES;
+   SELECT COUNT(*) FROM employees;  -- ~300,024
+   SELECT * FROM employees LIMIT 5;
+   ```
+   - Expected:
+     ```
+     +--------+------------+------------+-----------+--------+------------+
+     | emp_no | birth_date | first_name | last_name | gender | hire_date  |
+     +--------+------------+------------+-----------+--------+------------+
+     | 10001  | 1953-09-02 | Georgi     | Facello   | M      | 1986-06-26 |
+     ...
+     ```
+6. **Run Integrity Test** (Optional):
+   - Copy test script:
+     ```
+     docker cp ./test_db/test_employees_md5.sql mysql-container:/var/lib/mysql-files/test_employees_md5.sql
+     ```
+   - Run:
+     ```
+     mysql -u root -p -t < /var/lib/mysql-files/test_employees_md5.sql
+     ```
+   - Expected: "OK" for the `employees` table.
+
+#### Step 5: Cleanup and Storage
+1. **Exit and Stop (if Testing)**:
+   ```
+   exit
+   docker stop mysql-container  # Optional
+   ```
+2. **Archive Dump**:
+   ```
+   mv ./employees_only.sql ~/backups/
+   tar -czf ~/backups/employees_table_backup.tar.gz ~/backups/employees_only.sql
+   ```
+
+#### Troubleshooting
+- **Foreign Key Errors**:
+  - If dependent tables (e.g., `salaries`) cause issues, ensure `SET FOREIGN_KEY_CHECKS = 0` during import.
+- **File Not Found**:
+  - Verify paths:
+    ```
+    ls -al /var/lib/mysql-files/employees_only.sql
+    ```
+- **Slow Import**:
+  - Increase memory limit:
+    ```
+    mysql -u root -p
+    SET GLOBAL max_allowed_packet = 268435456;
+    ```
+- **Logs**:
+  ```
+  tail -n 50 /var/log/mysql/error.log
+  ```
+
+#### Notes
+- **Dependencies**: The `employees` table is critical for `salaries`, `titles`, `dept_emp`, and `dept_manager`. Restoring only `employees` is safe as long as foreign key checks are disabled during import.
+- **Schema Inclusion**: The dump includes `CREATE TABLE employees` to ensure the table structure is recreated correctly.
+- **Future Use**: The `employees_only.sql` file can be restored in any MySQL container with an `employees` database.
+
+This revised process focuses on the `employees` table, addressing the specific task while ensuring compatibility with the database’s dependencies. If you need to back up or restore additional tables or encounter issues, let me know!
+   
+</details>
+
 </details>
 
 ---
