@@ -2798,3 +2798,279 @@ If you have a specific table or condition in mind (e.g., delete employees with c
 </details>
 
 ---
+
+## Restoring only the missing rows
+
+### **Key Considerations**
+- **Do You Have a Backup?**: You need a recent `.sql` dump file (e.g., `employees_table.sql` or a full database dump) that contains the table’s data before the deletion occurred.
+- **Can You Identify Missing Rows?**: If you don’t know which rows were deleted, you’ll need to compare the current table with the backup to find the differences.
+- **Foreign Key Constraints**: Your `employees` database has related tables (e.g., `dept_emp`, `salaries`). Restoring rows in one table may require restoring related rows in others to maintain data integrity.
+- **Alternative Recovery Options**: If you don’t have a dump file, other methods like binary logs or point-in-time recovery may be available, depending on your MySQL configuration.
+
+<details>
+    <summary>Click to view the options and steps to restore</summary>
+
+### **Option 1: Don’t Delete All Rows, Restore Only Missing Rows**
+You can compare the current table with a dump file to identify and restore only the missing rows. This is the preferred approach to avoid overwriting existing data. Here’s how to do it:
+
+#### **Step 1: Verify You Have a Dump File**
+- Ensure you have a `.sql` dump file (e.g., `employees_table.sql`) created with `mysqldump` before the deletion. This file should contain the `CREATE TABLE` statement (optional) and `INSERT` statements for the table’s data.
+- Example command that created the dump:
+  ```bash
+  mysqldump -u username -p employees employees > employees_table.sql
+  ```
+
+#### **Step 2: Create a Temporary Database for Comparison**
+- Import the dump file into a temporary database to compare its contents with the current table.
+- Create a new database (e.g., `temp_restore`):
+  ```sql
+  CREATE DATABASE temp_restore;
+  ```
+- Restore the dump file into the temporary database:
+  ```bash
+  mysql -u username -p temp_restore < employees_table.sql
+  ```
+- This creates a copy of the `employees` table (and any other dumped tables) in `temp_restore` with the data as it was at the time of the backup.
+
+#### **Step 3: Identify Missing Rows**
+- Compare the current table (e.g., `employees.employees`) with the restored table (e.g., `temp_restore.employees`) to find rows that exist in the backup but not in the current table.
+- Assuming `emp_no` is the primary key in the `employees` table, you can use a query like:
+  ```sql
+  SELECT t.emp_no, t.first_name, t.last_name, t.birth_date, t.gender, t.hire_date
+  FROM temp_restore.employees t
+  LEFT JOIN employees.employees e ON t.emp_no = e.emp_no
+  WHERE e.emp_no IS NULL;
+  ```
+  - This query finds rows in `temp_restore.employees` that don’t exist in `employees.employees` (i.e., the deleted rows).
+  - The `LEFT JOIN` with `WHERE e.emp_no IS NULL` identifies rows present in the backup but missing in the current table.
+
+- **Save the Missing Rows**:
+  Export the missing rows to a new `.sql` file for restoration:
+  ```bash
+  mysqldump -u username -p --no-create-info --skip-lock-tables --where="emp_no IN (
+    SELECT t.emp_no
+    FROM temp_restore.employees t
+    LEFT JOIN employees.employees e ON t.emp_no = e.emp_no
+    WHERE e.emp_no IS NULL
+  )" temp_restore employees > missing_employees.sql
+  ```
+  - The `--where` option filters the dump to include only the missing rows.
+  - The resulting `missing_employees.sql` contains `INSERT` statements for the deleted rows.
+
+#### **Step 4: Restore Only the Missing Rows**
+- Import the `missing_employees.sql` file into the original database:
+  ```bash
+  mysql -u username -p employees < missing_employees.sql
+  ```
+- This inserts only the missing rows back into the `employees` table, preserving any existing data.
+
+#### **Step 5: Handle Related Tables**
+- If the deleted rows in `employees` had related data in tables like `dept_emp`, `salaries`, or `titles`, repeat the process for those tables:
+  - Identify missing rows in `dept_emp`:
+    ```sql
+    SELECT t.emp_no, t.dept_no, t.from_date, t.to_date
+    FROM temp_restore.dept_emp t
+    LEFT JOIN employees.dept_emp e ON t.emp_no = e.emp_no AND t.dept_no = e.dept_no
+    WHERE e.emp_no IS NULL;
+    ```
+  - Export and restore missing rows for `dept_emp`, `salaries`, etc., as needed.
+
+#### **Step 6: Verify the Restore**
+- Check the restored data:
+  ```sql
+  SELECT * FROM employees WHERE emp_no IN (
+      SELECT emp_no FROM temp_restore.employees
+  );
+  ```
+- Compare row counts before and after:
+  ```sql
+  SELECT COUNT(*) FROM employees.employees;
+  SELECT COUNT(*) FROM temp_restore.employees;
+  ```
+
+#### **Step 7: Clean Up**
+- Drop the temporary database:
+  ```sql
+  DROP DATABASE temp_restore;
+  ```
+
+### **Option 2: Delete All Rows and Restore Entire Table**
+If identifying and restoring only missing rows is too complex or you’re confident the backup contains all necessary data, you can delete all rows and restore the entire table from the dump. However, this is less desirable because it overwrites existing data.
+
+#### **Steps**:
+1. **Backup Current Data** (for safety):
+   ```bash
+   mysqldump -u username -p employees employees > employees_current.sql
+   ```
+
+2. **Truncate the Table**:
+   ```sql
+   TRUNCATE TABLE employees;
+   ```
+   - Or use `DELETE`:
+     ```sql
+     DELETE FROM employees;
+     ```
+   - **Note**: `TRUNCATE` resets auto-increment counters, while `DELETE` does not. Use `DELETE` if you need to preserve the counter.
+
+3. **Handle Foreign Keys**:
+   - If `employees` is referenced by `dept_emp`, `salaries`, etc., you may need to truncate or delete related tables first or disable foreign key checks:
+     ```sql
+     SET FOREIGN_KEY_CHECKS = 0;
+     TRUNCATE TABLE employees;
+     SET FOREIGN_KEY_CHECKS = 1;
+     ```
+
+4. **Restore the Full Table**:
+   ```bash
+   mysql -u username -p employees < employees_table.sql
+   ```
+
+5. **Verify**:
+   ```sql
+   SELECT COUNT(*) FROM employees;
+   ```
+
+**Downsides**:
+- Overwrites any new or modified rows added since the backup.
+- Requires restoring related tables (e.g., `dept_emp`, `salaries`) to maintain consistency, which can be disruptive.
+- More destructive than restoring only missing rows.
+
+### **Option 3: Use Binary Logs (If Enabled)**
+If you don’t have a dump file or want to recover without a full restore, you can use MySQL’s binary logs (if enabled) to identify and replay transactions before the deletion.
+
+#### **Steps**:
+1. **Check Binary Logging**:
+   ```sql
+   SHOW VARIABLES LIKE 'log_bin';
+   ```
+   - If `log_bin` is `ON`, binary logs are enabled.
+
+2. **Identify the Deletion**:
+   - Use `mysqlbinlog` to inspect binary logs and find the `DELETE` statement(s):
+     ```bash
+     mysqlbinlog /path/to/binary-log.000001 > binlog.txt
+     ```
+   - Look for the `DELETE` query or use timestamps to narrow down the event.
+
+3. **Replay Transactions**:
+   - Extract and replay `INSERT` statements from before the deletion using `mysqlbinlog` with a time range:
+     ```bash
+     mysqlbinlog --start-datetime="2025-10-23 00:00:00" --stop-datetime="2025-10-24 09:00:00" /path/to/binary-log.000001 | mysql -u username -p employees
+     ```
+   - Adjust the time range to before the deletion occurred.
+
+4. **Limitations**:
+   - Requires binary logging to be enabled before the deletion.
+   - Complex to pinpoint exact transactions without knowing the deletion time.
+   - Not practical if you don’t have binary logs or if they’ve been purged.
+
+### **Why Restoring Only Missing Rows is Better**
+- **Preserves Existing Data**: New or modified rows since the backup are retained.
+- **Less Disruptive**: Avoids wiping out the entire table or related tables.
+- **Targeted Recovery**: Only restores what was lost, maintaining database consistency.
+- **Feasible with Dump**: A `.sql` dump file makes it easy to compare and extract missing rows.
+
+### **Challenges with Restoring Only Missing Rows**
+- **Requires a Backup**: You need a `.sql` dump file from before the deletion.
+- **Primary Key Needed**: Comparing tables relies on a unique identifier (e.g., `emp_no` in `employees`).
+- **Foreign Key Complexity**: Restoring rows in `employees` may require restoring related rows in `dept_emp`, `salaries`, etc., to avoid constraint violations.
+- **Time-Consuming**: Comparing large tables can be slow, especially for millions of rows.
+
+### **Best Practices**
+1. **Always Have Backups**:
+   - Regularly create dump files:
+     ```bash
+     mysqldump -u username -p employees > employees_backup_$(date +%F).sql
+     ```
+
+2. **Enable Binary Logging**:
+   - Enable binary logging for point-in-time recovery:
+     ```sql
+     SET GLOBAL log_bin = 'ON';
+     ```
+   - Configure in `my.cnf`:
+     ```ini
+     [mysqld]
+     log_bin = /var/log/mysql/mysql-bin.log
+     ```
+
+3. **Use Transactions for Deletes**:
+   - Wrap `DELETE` operations in transactions to allow rollback:
+     ```sql
+     START TRANSACTION;
+     DELETE FROM employees WHERE condition;
+     -- Verify
+     ROLLBACK; -- or COMMIT;
+     ```
+
+4. **Test Restores**:
+   - Test the restore process in a temporary database to ensure it works as expected.
+
+5. **Check Foreign Keys**:
+   - Before restoring, verify foreign key relationships:
+     ```sql
+     SHOW CREATE TABLE dept_emp;
+     ```
+
+### **Example in Your Context**
+Assume you accidentally deleted rows from the `employees` table and have a dump file `employees_table.sql`.
+
+1. **Create Temporary Database**:
+   ```sql
+   CREATE DATABASE temp_restore;
+   ```
+   ```bash
+   mysql -u username -p temp_restore < employees_table.sql
+   ```
+
+2. **Find Missing Rows**:
+   ```sql
+   SELECT t.emp_no, t.first_name, t.last_name
+   FROM temp_restore.employees t
+   LEFT JOIN employees.employees e ON t.emp_no = e.emp_no
+   WHERE e.emp_no IS NULL;
+   ```
+
+3. **Export Missing Rows**:
+   ```bash
+   mysqldump -u username -p --no-create-info --where="emp_no IN (
+       SELECT t.emp_no
+       FROM temp_restore.employees t
+       LEFT JOIN employees.employees e ON t.emp_no = e.emp_no
+       WHERE e.emp_no IS NULL
+   )" temp_restore employees > missing_employees.sql
+   ```
+
+4. **Restore Missing Rows**:
+   ```bash
+   mysql -u username -p employees < missing_employees.sql
+   ```
+
+5. **Handle Related Tables**:
+   - Repeat for `dept_emp`, `salaries`, etc., if needed:
+     ```bash
+     mysqldump -u username -p --no-create-info --where="emp_no IN (
+         SELECT t.emp_no
+         FROM temp_restore.dept_emp t
+         LEFT JOIN employees.dept_emp e ON t.emp_no = e.emp_no AND t.dept_no = e.dept_no
+         WHERE e.emp_no IS NULL
+     )" temp_restore dept_emp > missing_dept_emp.sql
+     mysql -u username -p employees < missing_dept_emp.sql
+     ```
+
+6. **Verify**:
+   ```sql
+   SELECT COUNT(*) FROM employees.employees;
+   ```
+
+### **Conclusion**
+You don’t need to delete all rows and restore the entire table. Instead, you can use a `.sql` dump file to:
+- Compare the current table with the backup in a temporary database.
+- Identify missing rows using a `LEFT JOIN` query.
+- Export and restore only the missing rows with `mysqldump --where`.
+This approach preserves existing data and is more precise. If binary logs are enabled, you can also explore point-in-time recovery, but a dump file is usually easier to work with. Always maintain regular backups and test your restore process to ensure data integrity.
+
+</details>
+
+---
