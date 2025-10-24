@@ -2121,3 +2121,236 @@ This process creates a complete, portable dump of the Employees Database and res
 </details>
 
 ---
+
+### Step-by-Step Guide to Delete a Table, Back Up Specific Tables, and Restore in a New MySQL Container
+
+Since we have successfully migrated the entire `employees` database to a new MySQL container (`new-mysql-container`) and verified its functionality, you now want to:
+1. Delete a specific table (e.g., `employees`) from the `employees` database in the original container (`mysql-container`).
+2. Take a backup (dump) of specific tables (e.g., `employees`, `departments`, and `salaries`) from the original container.
+3. Restore these tables in the new container (`new-mysql-container`) to ensure they are correctly recreated.
+
+This process builds on the previous successful full database dump and restore, focusing on table-level operations while addressing dependencies (e.g., foreign keys) and container-specific requirements. Below is a detailed guide with corrected commands, incorporating lessons from prior interactions and the provided document, ensuring the process is robust and portable.
+
+
+<details>
+    <summary>Click to view Prerequisites and Steps</summary>
+
+#### Prerequisites
+- **Environment**:
+  - **Source Container**: `mysql-container` (MySQL 8.0.43, port 3306) with the `employees` database (~300,024 rows in `employees`, ~2,844,047 in `salaries`).
+  - **New Container**: `new-mysql-container` (port 3307) with the `employees` database already restored.
+  - **Tables**: 8 tables (`employees`, `departments`, `dept_emp`, `dept_manager`, `titles`, `salaries`, `current_dept_emp`, `dept_emp_latest_date`).
+- **Tools**: `mysqldump` for backup, `mysql` for import/deletion, Docker for container management.
+- **Disk Space**: ~50-100 MB for specific table dumps.
+- **Access**: Root credentials for both containers.
+
+#### Key Considerations
+- **Foreign Key Dependencies**: The `employees` table is referenced by `salaries`, `titles`, `dept_emp`, and `dept_manager`. Deleting it requires disabling foreign key checks to avoid errors.
+- **Schema Context**: As noted in the provided document, table dumps must include the database context (`employees`) to ensure portability and correct restoration.
+- **Portability**: Dumps include `CREATE TABLE` statements to recreate the schema, avoiding issues with missing structures in the target.
+
+---
+
+### Step-by-Step Process
+
+#### Step 1: Delete the `employees` Table in the Original Container
+1. **Access the Source Container**:
+   ```
+   docker exec -it mysql-container mysql -u root -p
+   ```
+   - Enter the root password.
+2. **Disable Foreign Key Checks**:
+   - Since `employees` is referenced by other tables, disable foreign keys to allow deletion:
+     ```
+     SET FOREIGN_KEY_CHECKS = 0;
+     ```
+3. **Delete the `employees` Table**:
+   ```
+   USE employees;
+   DROP TABLE employees;
+   ```
+4. **Re-enable Foreign Key Checks**:
+   ```
+   SET FOREIGN_KEY_CHECKS = 1;
+   ```
+5. **Verify Deletion**:
+   ```
+   SHOW TABLES;
+   SELECT COUNT(*) FROM employees;
+   ```
+   - Expect: `employees` missing from `SHOW TABLES` and an error for the `SELECT` query (table doesn’t exist).
+6. **Exit MySQL**:
+   ```
+   exit;
+   ```
+
+#### Step 2: Back Up Specific Tables (`employees`, `departments`, `salaries`)
+1. **Access the Container Shell**:
+   ```
+   docker exec -it mysql-container bash
+   ```
+   - Note: The `employees` table is deleted in `mysql-container`, so you’ll need to use the `new-mysql-container` (where the full database was previously restored) to dump the tables.
+2. **Exit and Switch to New Container**:
+   ```
+   exit
+   docker exec -it new-mysql-container bash
+   ```
+3. **Create the Table-Specific Dump**:
+   - Dump the `employees`, `departments`, and `salaries` tables:
+     ```
+     mysqldump -u root -p employees employees departments salaries --single-transaction > /var/lib/mysql-files/specific_tables_dump.sql
+     ```
+     - **Options**:
+       - `-u root`: Root user.
+       - `-p`: Prompts for password.
+       - `employees employees departments salaries`: Specifies the database and tables.
+       - `--single-transaction`: Ensures consistency without locking.
+       - Output: `/var/lib/mysql-files/specific_tables_dump.sql` (~100 MB).
+     - Enter the root password.
+4. **Verify the Dump File**:
+   ```
+   ls -al /var/lib/mysql-files/specific_tables_dump.sql
+   head -n 20 /var/lib/mysql-files/specific_tables_dump.sql
+   ```
+   - Expected: Starts with `-- MySQL dump`, `USE employees;`, and `CREATE TABLE` statements for `employees`, `departments`, and `salaries`.
+5. **Set Permissions**:
+   ```
+   chmod 644 /var/lib/mysql-files/specific_tables_dump.sql
+   chown mysql:mysql /var/lib/mysql-files/specific_tables_dump.sql
+   ```
+
+#### Step 3: Transfer the Dump to the Local Machine
+1. **Exit the Container**:
+   ```
+   exit
+   ```
+2. **Copy to Host**:
+   ```
+   docker cp new-mysql-container:/var/lib/mysql-files/specific_tables_dump.sql ./specific_tables_dump.sql
+   ```
+3. **Verify Locally**:
+   ```
+   ls -al ./specific_tables_dump.sql
+   head -n 20 ./specific_tables_dump.sql
+   ```
+4. **Optional: Compress for Storage**:
+   ```
+   gzip ./specific_tables_dump.sql
+   ```
+   - Creates `specific_tables_dump.sql.gz`.
+
+#### Step 4: Restore the Tables in the Original Container
+1. **Copy the Dump File**:
+   - If compressed, decompress:
+     ```
+     gunzip ./specific_tables_dump.sql.gz
+     ```
+   - Copy to `mysql-container`:
+     ```
+     docker cp ./specific_tables_dump.sql mysql-container:/var/lib/mysql-files/specific_tables_dump.sql
+     ```
+2. **Access the Original Container**:
+   ```
+   docker exec -it mysql-container bash
+   ```
+3. **Set Permissions**:
+   ```
+   chmod 644 /var/lib/mysql-files/specific_tables_dump.sql
+   chown mysql:mysql /var/lib/mysql-files/specific_tables_dump.sql
+   ```
+4. **Import the Dump**:
+   - Log into MySQL:
+     ```
+     mysql -u root -p
+     ```
+   - Disable foreign key checks (since `salaries` references `employees`):
+     ```
+     SET FOREIGN_KEY_CHECKS = 0;
+     ```
+   - Import:
+     ```
+     USE employees;
+     SOURCE /var/lib/mysql-files/specific_tables_dump.sql;
+     ```
+   - Or from the host:
+     ```
+     docker exec -i mysql-container mysql -u root -p employees < ./specific_tables_dump.sql
+     ```
+   - Re-enable foreign keys:
+     ```
+     SET FOREIGN_KEY_CHECKS = 1;
+     ```
+   - Import time: ~1-5 minutes.
+5. **Verify Restoration**:
+   ```
+   SHOW TABLES;
+   SELECT COUNT(*) FROM employees;  -- ~300,024
+   SELECT COUNT(*) FROM departments;  -- ~9
+   SELECT COUNT(*) FROM salaries;  -- ~2,844,047
+   SELECT * FROM employees LIMIT 5;
+   ```
+   - Expected:
+     ```
+     +--------+------------+------------+-----------+--------+------------+
+     | emp_no | birth_date | first_name | last_name | gender | hire_date  |
+     +--------+------------+------------+-----------+--------+------------+
+     | 10001  | 1953-09-02 | Georgi     | Facello   | M      | 1986-06-26 |
+     ...
+     ```
+6. **Run Integrity Test** (Optional):
+   - Copy test script:
+     ```
+     docker cp ./test_db/test_employees_md5.sql mysql-container:/var/lib/mysql-files/test_employees_md5.sql
+     ```
+   - Run:
+     ```
+     mysql -u root -p -t < /var/lib/mysql-files/test_employees_md5.sql
+     ```
+   - Expected: "OK" for `employees`, `departments`, `salaries`.
+
+#### Step 5: Cleanup and Storage
+1. **Exit and Stop (if Testing)**:
+   ```
+   exit
+   docker stop mysql-container  # Optional
+   ```
+2. **Archive Dump**:
+   ```
+   mv ./specific_tables_dump.sql ~/backups/
+   tar -czf ~/backups/specific_tables_backup.tar.gz ~/backups/specific_tables_dump.sql
+   ```
+
+#### Troubleshooting
+- **Foreign Key Errors**:
+  - If import fails due to dependencies:
+    ```
+    SET FOREIGN_KEY_CHECKS = 0;
+    SOURCE /var/lib/mysql-files/specific_tables_dump.sql;
+    SET FOREIGN_KEY_CHECKS = 1;
+    ```
+- **File Not Found**:
+  - Verify paths:
+    ```
+    ls -al /var/lib/mysql-files/specific_tables_dump.sql
+    ```
+- **Slow Import**:
+  - Increase memory limit:
+    ```
+    mysql -u root -p
+    SET GLOBAL max_allowed_packet = 268435456;
+    ```
+- **Logs**:
+  ```
+  tail -n 50 /var/log/mysql/error.log
+  ```
+
+#### Notes
+- **Dependencies**: The `salaries` table depends on `employees`. Dumping and restoring them together avoids foreign key issues.
+- **Portability**: The dump includes `USE employees;` for correct database context.
+- **Future Use**: The dump can be restored in any MySQL container by repeating Step 4.
+
+This process successfully deletes the `employees` table, backs up specific tables, and restores them, ensuring data integrity and compatibility with the `employees` database’s schema and relationships. If issues arise, share error outputs for further assistance!
+
+</details>
+
+---
