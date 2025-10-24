@@ -3327,3 +3327,190 @@ If the missing data is in `dept_emp` (department assignments):
 </details>
 
 ---
+
+## Monitoring MySQL DB
+
+To monitor the number of connections (open, closed, and active) in a MySQL instance running inside a container, you can use MySQL commands, variables, and tools available within the container. Below are the steps to achieve this:
+
+<details>
+    <summary>Click to view the Steps to Achieve the Result</summary>
+
+
+### 1. **Access the MySQL Container**
+First, you need to access the MySQL instance running inside the container. Assuming you’re using Docker, you can enter the container’s shell:
+
+```bash
+docker exec -it <container_name> bash
+```
+
+Replace `<container_name>` with the name or ID of your MySQL container. Once inside, you can connect to the MySQL server:
+
+```bash
+mysql -u root -p
+```
+
+Enter the root password when prompted, or use another user with sufficient privileges.
+
+### 2. **Monitor Connections Using MySQL Commands**
+
+MySQL provides several ways to monitor connections through its system variables and status commands. Here’s how you can check open, closed, and active connections:
+
+#### a) **Check Open Connections**
+Open connections are the currently active or idle connections to the MySQL server. Use the `SHOW STATUS` command to view connection-related metrics:
+
+```sql
+SHOW STATUS LIKE 'Threads_%';
+```
+
+Key variables to focus on:
+- `Threads_connected`: Number of currently open connections.
+- `Threads_running`: Number of connections actively running queries (active connections).
+- `Threads_cached`: Number of cached threads for quick reuse.
+- `Threads_created`: Number of threads created to handle connections.
+
+Example output:
+```
++-------------------+-------+
+| Variable_name     | Value |
++-------------------+-------+
+| Threads_cached    | 2     |
+| Threads_connected | 10    |
+| Threads_created   | 15    |
+| Threads_running   | 3     |
++-------------------+-------+
+```
+
+Here:
+- `Threads_connected` (10) indicates open connections.
+- `Threads_running` (3) indicates active connections executing queries.
+
+#### b) **Check Total Connections (Including Closed)**
+To see the total number of connections (including those that have been closed), use:
+
+```sql
+SHOW STATUS LIKE 'Connections';
+```
+
+This shows the total number of connection attempts (successful or not) since the server started.
+
+Example output:
+```
++---------------+-------+
+| Variable_name | Value |
++---------------+-------+
+| Connections   | 150   |
++---------------+-------+
+```
+
+The `Connections` value represents all connection attempts, including those that are now closed.
+
+To estimate closed connections, you can calculate:
+```
+Closed Connections = Connections - Threads_connected
+```
+So, if `Connections = 150` and `Threads_connected = 10`, then closed connections ≈ 140.
+
+#### c) **List All Current Connections**
+To see details of all open connections, including user, host, and status:
+
+```sql
+SHOW PROCESSLIST;
+```
+
+Example output:
+```
++----+------+-----------+------+---------+------+-------+------------------+
+| Id | User | Host      | db   | Command | Time | State | Info             |
++----+------+-----------+------+---------+------+-------+------------------+
+| 5  | root | localhost | test | Query   | 0    | init  | SHOW PROCESSLIST |
+| 6  | user | 172.17.0.1| app  | Sleep   | 120  |       | NULL             |
++----+------+-----------+------+---------+------+-------+------------------+
+```
+
+- `Command = Query`: Indicates an active connection running a query.
+- `Command = Sleep`: Indicates an idle connection.
+- The number of rows in the output reflects the total open connections (`Threads_connected`).
+
+#### d) **Check Maximum Allowed Connections**
+To ensure you’re not hitting connection limits, check the maximum allowed connections:
+
+```sql
+SHOW VARIABLES LIKE 'max_connections';
+```
+
+Example output:
+```
++-----------------+-------+
+| Variable_name   | Value |
++-----------------+-------+
+| max_connections | 151   |
++-----------------+-------+
+```
+
+If `Threads_connected` approaches `max_connections`, you may need to increase this limit or optimize your application.
+
+### 3. **Monitor Connections in Real-Time**
+To continuously monitor connections, you can run the above commands in a loop inside the container. For example:
+
+```bash
+watch -n 1 'mysql -u root -p<your_password> -e "SHOW STATUS LIKE \"Threads_%\"; SHOW STATUS LIKE \"Connections\"; SHOW PROCESSLIST;"'
+```
+
+This updates the output every second. Replace `<your_password>` with your MySQL root password.
+
+### 4. **Use MySQL Tools for Advanced Monitoring**
+If you need more detailed monitoring, consider these tools available in the MySQL container:
+
+#### a) **MySQL Admin**
+Use `mysqladmin` to check status:
+
+```bash
+mysqladmin -u root -p status
+```
+
+Example output:
+```
+Uptime: 3600  Threads: 10  Questions: 500  Slow queries: 0  Opens: 100  Flush tables: 1  Open tables: 50  Queries per second avg: 0.138
+```
+
+- `Threads`: Number of open connections.
+- `Questions`: Total queries executed, which can help infer connection activity.
+
+#### b) **Performance Schema**
+If the Performance Schema is enabled (check with `SHOW VARIABLES LIKE 'performance_schema';`), you can query detailed connection metrics:
+
+```sql
+SELECT * FROM performance_schema.threads WHERE PROCESSLIST_ID IS NOT NULL;
+```
+
+This provides detailed thread information, including connection states.
+
+### 5. **External Monitoring Tools**
+For a more robust solution, you can use external tools to monitor MySQL connections from outside the container:
+
+- **Prometheus + MySQL Exporter**: Deploy a MySQL exporter in your containerized environment to scrape metrics like `mysql_global_status_threads_connected` and visualize them in Prometheus or Grafana.
+- **MySQL Workbench**: Connect to the MySQL instance running in the container and use its performance dashboard to monitor connections.
+- **Zabbix or Nagios**: Configure these tools to monitor MySQL metrics via the container’s exposed port (default: 3306).
+
+To expose MySQL metrics, ensure the container’s MySQL port is mapped to the host (e.g., `-p 3306:3306` in your `docker run` command).
+
+### 6. **Automating Connection Monitoring**
+To automate monitoring, you can write a script inside the container. For example, create a script to log connection stats:
+
+```bash
+#!/bin/bash
+while true; do
+  mysql -u root -p<your_password> -e "SHOW STATUS LIKE 'Threads_%'; SHOW STATUS LIKE 'Connections';" >> /var/log/mysql_connections.log
+  sleep 10
+done
+```
+
+Save this as `monitor_connections.sh`, make it executable (`chmod +x monitor_connections.sh`), and run it in the background.
+
+### Summary of Key Metrics
+- **Open Connections**: `Threads_connected` from `SHOW STATUS LIKE 'Threads_%';`
+- **Active Connections**: `Threads_running` from `SHOW STATUS LIKE 'Threads_%';`
+- **Closed Connections**: Derived as `Connections - Threads_connected` from `SHOW STATUS LIKE 'Connections';`
+- **Detailed Connection Info**: `SHOW PROCESSLIST;`
+
+</details>
