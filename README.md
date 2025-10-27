@@ -3626,6 +3626,7 @@ The current logs are scattered in `/var/lib/mysql/` with container-like prefixes
   general_log_file = /var/log/mysql/general.log
   slow_query_log_file = /var/log/mysql/slow.log
   log_error = /var/log/mysql/error.log  # Changes from stderr to a file for easier tailing/monitoring
+  SHOW VARIABLES LIKE '%log%';
   ```
   - Restart: `sudo systemctl restart mysqld` (or equivalent).
   - Rationale: Centralized logs make it easier to use tools like `tail -f`, logrotate, or external monitors (e.g., ELK stack, Prometheus).
