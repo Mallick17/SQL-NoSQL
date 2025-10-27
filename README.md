@@ -3727,3 +3727,216 @@ Apply changes gradually, monitor with `SHOW GLOBAL STATUS;` before/after, and te
 </details>
 
 ---
+
+<details>
+    <summary>Click to view</summary>
+
+### Step-by-Step Guide to Setting Up MySQL Proxy (Using ProxySQL) with Your Running MySQL Container
+
+I'll explain this in detail as a beginner-friendly guide, assuming you're using ProxySQL (a popular MySQL proxy for load balancing, query routing, and monitoring) with your existing MySQL 8.0 container (`mysql-container`). We'll follow your specified approach: pulling the ProxySQL image, creating a configuration file locally (`proxysql.cnf`), running the ProxySQL container, and then copying the configuration file into the running container using `docker cp`. After copying, we'll reload the configuration inside ProxySQL without restarting the container.
+
+This setup places ProxySQL as an intermediary between clients (e.g., your `sysbench` container or applications) and your MySQL container. Clients will connect to ProxySQL on port 6033, and ProxySQL will forward requests to MySQL on port 3306.
+
+**Assumptions:**
+- Your MySQL container (`mysql-container`) is running on the `mysql-sysbench-net` Docker network.
+- MySQL root user/password: `root`/`root` (adjust if different).
+- You're working on a host with Docker installed (e.g., your local machine).
+- We'll use the official `proxysql/proxysql` image.
+- Commands are run in your host terminal (e.g., Bash on macOS/Linux).
+
+If any step fails, check `docker logs <container_name>` for errors.
+
+#### Step 1: Pull the ProxySQL Docker Image
+First, download the official ProxySQL image from Docker Hub. This ensures you have the latest version compatible with MySQL 8.0.
+
+1. Open your terminal.
+2. Run the following command:
+   ```
+   docker pull proxysql/proxysql:latest
+   ```
+   - This pulls the image (size ~200MB). Output will show progress and confirm "latest" tag.
+   - Verify: Run `docker images | grep proxysql` to see the image listed.
+
+#### Step 2: Create the ProxySQL Configuration File Locally
+ProxySQL needs a configuration file (`proxysql.cnf`) to define how it connects to your MySQL backend, handles users, and listens for connections.
+
+1. Create a directory for the config (optional but organized):
+   ```
+   mkdir proxysql-config
+   cd proxysql-config
+   ```
+
+2. Use a text editor (e.g., Vim, Nano, or VS Code) to create `proxysql.cnf`. For example, with Vim:
+   ```
+   vim proxysql.cnf
+   ```
+   - Press `i` to insert mode, paste the following configuration, then `Esc` + `:wq` to save and exit.
+
+   Configuration content (copy-paste this):
+   ```
+   # proxysql.cnf - Basic setup for single MySQL backend
+   datadir="/var/lib/proxysql"
+
+   admin_variables=
+   {
+       admin_credentials="admin:admin"  # ProxySQL admin login (change for security)
+       mysql_ifaces="0.0.0.0:6032"      # Admin interface port
+       refresh_interval=2000
+   }
+
+   mysql_variables=
+   {
+       threads=4                        # Number of worker threads (adjust based on your CPU cores, e.g., run 'nproc' in container)
+       max_connections=2048             # Max client connections (higher than MySQL's 151)
+       default_query_delay=0
+       default_query_timeout=36000000
+       have_compress=true
+       poll_timeout=2000
+       interfaces="0.0.0.0:6033"        # Proxy listener port (clients connect here)
+       default_schema="employees"       # Default database (your employees DB)
+       stacksize=1048576
+       server_version="8.0.43"          # Match your MySQL version
+       connect_timeout_server=10000
+       monitor_history=60000
+       monitor_connect_interval=200000
+       monitor_ping_interval=200000
+       ping_interval_server_msec=10000
+       commands_stats=true
+       sessions_sort=true
+   }
+
+   mysql_servers=
+   (
+       { address="mysql-container", port=3306, hostgroup=10 }  # Your MySQL container as backend
+   )
+
+   mysql_users=
+   (
+       { username="root", password="root", default_hostgroup=10 }  # MySQL user for ProxySQL to connect
+   )
+
+   mysql_query_rules=
+   (
+       # Optional: Route queries to employees DB tables
+       { match_pattern="^SELECT .* FROM employees\\..*", destination_hostgroup=10, apply=1 }
+   )
+   ```
+
+   - **Key explanations**:
+     - `admin_credentials`: Login for ProxySQL's admin interface.
+     - `interfaces`: ProxySQL listens on port 6033 for MySQL clients.
+     - `mysql_servers`: Points to your MySQL container by name (resolved via Docker network).
+     - `mysql_users`: ProxySQL uses this to authenticate and connect to MySQL.
+     - Customize: Change passwords, threads, or add rules for specific queries.
+
+3. Verify the file exists:
+   ```
+   ls -l proxysql.cnf
+   ```
+
+#### Step 3: Run the ProxySQL Container
+Now, start the ProxySQL container without the configuration (we'll copy it in later). We'll connect it to the same network as your MySQL container.
+
+1. Run the container:
+   ```
+   docker run -d \
+     --name proxysql \
+     --network mysql-sysbench-net \
+     -p 6033:6033 \
+     -p 6032:6032 \  # Expose admin port to host (optional for monitoring)
+     proxysql/proxysql:latest
+   ```
+   - `-d`: Run in background.
+   - `--network mysql-sysbench-net`: Allows communication with `mysql-container`.
+   - `-p 6033:6033`: Expose proxy port to host (clients connect to `localhost:6033` or container name).
+   - `-p 6032:6032`: Expose admin port (for Step 5).
+
+2. Verify it's running:
+   ```
+   docker ps | grep proxysql
+   ```
+   - Should show status "Up".
+   - Check logs: `docker logs proxysql` (it may warn about missing config, but that's okay for now).
+
+#### Step 4: Copy the Configuration File into the Running Container
+Use `docker cp` to copy your local `proxysql.cnf` into the container's `/etc/proxysql/` directory (ProxySQL's default config path).
+
+1. Ensure you're in the directory with `proxysql.cnf` (e.g., `./proxysql-config`).
+2. Run the copy command:
+   ```
+   docker cp proxysql.cnf proxysql:/etc/proxysql/proxysql.cnf
+   ```
+
+3. Verify the copy inside the container:
+   ```
+   docker exec -it proxysql bash
+   ls -l /etc/proxysql/proxysql.cnf  # Should show the file
+   cat /etc/proxysql/proxysql.cnf    # Optional: Check content
+   exit
+   ```
+
+#### Step 5: Reload the Configuration in ProxySQL
+ProxySQL doesn't auto-reload configs; we need to use its admin interface to load the new config at runtime (no restart needed).
+
+1. Connect to ProxySQL's admin interface:
+   ```
+   docker exec -it proxysql mysql -u admin -padmin -h127.0.0.1 -P6032 --prompt='Admin> '
+   ```
+   - User/password: `admin`/`admin` (from config; change in production).
+   - If on host port 6032: `mysql -u admin -padmin -h localhost -P6032`.
+
+2. Inside the admin console (prompt: `Admin>`), load the config:
+   ```
+   Admin> LOAD MYSQL SERVERS FROM CONFIG;
+   Admin> LOAD MYSQL USERS FROM CONFIG;
+   Admin> LOAD MYSQL QUERY RULES FROM CONFIG;
+   Admin> LOAD MYSQL VARIABLES FROM CONFIG;
+   Admin> LOAD ADMIN VARIABLES FROM CONFIG;
+   Admin> SAVE MYSQL SERVERS TO DISK;
+   Admin> SAVE MYSQL USERS TO DISK;
+   Admin> SAVE MYSQL QUERY RULES TO DISK;
+   Admin> SAVE MYSQL VARIABLES TO DISK;
+   Admin> SAVE ADMIN VARIABLES TO DISK;
+   Admin> LOAD MYSQL SERVERS TO RUNTIME;
+   Admin> LOAD MYSQL USERS TO RUNTIME;
+   Admin> LOAD MYSQL QUERY RULES TO RUNTIME;
+   Admin> LOAD MYSQL VARIABLES TO RUNTIME;
+   Admin> LOAD ADMIN VARIABLES TO RUNTIME;
+   ```
+
+3. Verify the backend (your MySQL container):
+   ```
+   Admin> SELECT * FROM mysql_servers;
+   ```
+   - Should show `mysql-container` as a hostgroup=10 entry.
+
+4. Exit: `exit;`
+
+#### Step 6: Test the ProxySQL Setup
+Now, test by connecting through the proxy.
+
+1. From your host:
+   ```
+   mysql -h localhost -P6033 -u root -proot -e "SHOW DATABASES;"
+   ```
+   - Should list databases like `employees` (proxied via ProxySQL).
+
+2. From your `sysbench` container (enter it with `docker exec -it ee89c8bb871e bash`):
+   ```
+   mysql -h proxysql -P6033 -u root -proot -e "SELECT 1 FROM employees.employees LIMIT 1;"
+   ```
+
+3. Update sysbench commands to use the proxy:
+   ```
+   sysbench oltp_read_write --mysql-host=proxysql --mysql-port=6033 --mysql-user=root --mysql-password=root --mysql-db=employees --threads=128 --time=60 run
+   ```
+
+#### Step 7: Monitoring and Cleanup
+- Monitor ProxySQL: `docker logs proxysql` or use the admin console (`SELECT * FROM stats_mysql_connection_pool;`).
+- Stop/Remove: `docker stop proxysql; docker rm proxysql`.
+- Security: Change admin/root passwords in `proxysql.cnf` for production.
+- Troubleshooting: If ProxySQL can't connect to MySQL, check MySQL permissions (`GRANT ALL ON *.* TO 'root'@'%';`) and network (`docker network inspect mysql-sysbench-net`).
+
+This completes the setup. Now, all traffic goes through ProxySQL, and you can add advanced features like query caching by editing `proxysql.cnf` and reloading. If you encounter errors (e.g., during copy or reload), share the output for debugging!
+   
+</details>
