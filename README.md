@@ -4141,6 +4141,31 @@ SHOW VARIABLES LIKE 'max_connections';
 <details>
     <summary>Click to view the guide and setup</summary>
 
+### **Architecture Overview**
+
+```
+                 +---------------------------+
+                 |     Sysbench Container    |
+                 |  (Load Generator Client)  |
+                 +-------------+-------------+
+                               |
+                               |  TCP 6033 (ProxySQL listener)
+                               v
+                 +---------------------------+
+                 |       ProxySQL Layer      |
+                 |  Port 6033 -> MySQL Proxy |
+                 |  Port 6032 -> Admin Panel |
+                 +-------------+-------------+
+                               |
+                               |  TCP 3306 (MySQL port)
+                               v
+                 +---------------------------+
+                 |       MySQL Container     |
+                 |  Backend DB: employees    |
+                 +---------------------------+
+```
+
+
 ## **1. Prerequisites**
 
 Ensure you already have:
@@ -4390,12 +4415,9 @@ Sysbench (client)
  MySQL (port 3306)
 ```
 
-   
-</details>
-
 ---
 
-## ProxySQL Setup with MySQL and Sysbench (Docker)
+## ProxySQL Setup with MySQL and Sysbench (Docker) Tuning Connection Pool Parameters and Verification Flow
 
 <details>
     <summary>Click to view the Architecture Overview, Steps and Guide</summary>
@@ -4629,6 +4651,8 @@ Admin> SAVE MYSQL VARIABLES TO DISK;
 * **ProxySQL** helps handle **burst connections** by pooling MySQL sessions.
 * **Sysbench** results may show higher TPS and lower connection latency compared to direct MySQL connection.
 * It is ideal for production-like testing where connection reuse and load balancing behavior must be simulated.
+
+</details>
 
 </details>
 
