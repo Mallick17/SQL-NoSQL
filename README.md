@@ -4135,3 +4135,260 @@ SHOW VARIABLES LIKE 'max_connections';
 </details>
 
 ---
+
+## ProxySQL Setup with MySQL and Sysbench (Docker)
+
+<details>
+    <summary>Click to view the guide and setup</summary>
+
+## **1. Prerequisites**
+
+Ensure you already have:
+
+* A **Docker network** (`mysql-sysbench-net`)
+* A running **MySQL container** named `mysql-container`
+* The **Sysbench** container configured (from the previous guide)
+
+Check network:
+
+```bash
+docker network ls
+```
+
+---
+
+## **2. Pull the ProxySQL Docker Image**
+
+```bash
+docker pull proxysql/proxysql:latest
+```
+
+---
+
+## **3. Create ProxySQL Configuration**
+
+Create a configuration file named **`proxysql.cnf`**:
+
+```bash
+vim proxysql.cnf
+```
+
+Paste the following configuration:
+
+```ini
+# proxysql.cnf - Basic setup for single MySQL backend
+
+datadir="/var/lib/proxysql"
+
+admin_variables=
+{
+    admin_credentials="admin:admin"           # ProxySQL admin login (change for security)
+    mysql_ifaces="0.0.0.0:6032"               # Admin interface port
+    refresh_interval=2000
+}
+
+mysql_variables=
+{
+    threads=4                                 # Worker threads (adjust using 'nproc')
+    max_connections=2048                      # Max client connections
+    default_query_delay=0
+    default_query_timeout=36000000
+    have_compress=true
+    poll_timeout=2000
+    interfaces="0.0.0.0:6033"                 # Proxy listener port (Sysbench connects here)
+    default_schema="employees"                # Default DB
+    stacksize=1048576
+    server_version="8.0.43"                   # Match MySQL version
+    connect_timeout_server=10000
+    monitor_history=60000
+    monitor_connect_interval=200000
+    monitor_ping_interval=200000
+    ping_interval_server_msec=10000
+    commands_stats=true
+    sessions_sort=true
+}
+
+mysql_servers=
+(
+    { address="mysql-container", port=3306, hostgroup=10 }  # MySQL backend
+)
+
+mysql_users=
+(
+    { username="root", password="root", default_hostgroup=10 }  # ProxySQL connects using this user
+)
+
+mysql_query_rules=
+(
+    # Optional routing rule for employees DB
+    { match_pattern="^SELECT .* FROM employees\\..*", destination_hostgroup=10, apply=1 }
+)
+```
+
+---
+
+## **4. Run ProxySQL Container**
+
+Start ProxySQL and attach it to the same network as MySQL and Sysbench:
+
+```bash
+docker run -d --name proxysql \
+  --network mysql-sysbench-net \
+  -p 6033:6033 -p 6032:6032 \
+  proxysql/proxysql:latest
+```
+
+Check container status:
+
+```bash
+docker ps
+```
+
+View logs:
+
+```bash
+docker logs proxysql
+```
+
+---
+
+## **5. Copy Configuration File into Container**
+
+```bash
+docker cp proxysql.cnf proxysql:/etc/proxysql.cnf
+```
+
+(Optional) verify:
+
+```bash
+docker exec -it proxysql ls -l /etc/proxysql.cnf
+docker exec -it proxysql cat /etc/proxysql.cnf
+```
+
+---
+
+## **6. Load Configuration into ProxySQL Runtime**
+
+Access ProxySQL’s **admin interface**:
+
+```bash
+docker exec -it proxysql mysql -u admin -padmin -h 127.0.0.1 -P6032 --prompt='Admin> '
+```
+
+Execute the following commands:
+
+```sql
+Admin> LOAD MYSQL SERVERS FROM CONFIG;
+Admin> LOAD MYSQL USERS FROM CONFIG;
+Admin> LOAD MYSQL QUERY RULES FROM CONFIG;
+Admin> LOAD MYSQL VARIABLES FROM CONFIG;
+Admin> LOAD ADMIN VARIABLES FROM CONFIG;
+
+Admin> SAVE MYSQL SERVERS TO DISK;
+Admin> SAVE MYSQL USERS TO DISK;
+Admin> SAVE MYSQL QUERY RULES TO DISK;
+Admin> SAVE MYSQL VARIABLES TO DISK;
+Admin> SAVE ADMIN VARIABLES TO DISK;
+
+Admin> LOAD MYSQL SERVERS TO RUNTIME;
+Admin> LOAD MYSQL USERS TO RUNTIME;
+Admin> LOAD MYSQL QUERY RULES TO RUNTIME;
+Admin> LOAD MYSQL VARIABLES TO RUNTIME;
+Admin> LOAD ADMIN VARIABLES TO RUNTIME;
+```
+
+Validate loaded configuration:
+
+```sql
+Admin> SELECT * FROM mysql_servers;
+Admin> SELECT * FROM runtime_mysql_servers;
+```
+
+---
+
+## **7. Configure MySQL to Allow ProxySQL Access**
+
+Enter your MySQL container:
+
+```bash
+docker exec -it mysql-container bash
+```
+
+Grant access to the `root` user from all hosts (or just ProxySQL):
+
+```bash
+mysql -u root -p -e "GRANT ALL PRIVILEGES ON *.* TO 'root'@'%' WITH GRANT OPTION; FLUSH PRIVILEGES;"
+```
+
+Verify connectivity:
+
+```bash
+mysql -h localhost -P3306 -u root -p -e "SHOW DATABASES;"
+```
+
+---
+
+## **8. Test ProxySQL Connection from Sysbench**
+
+In your Sysbench container (`sysbench-debian`):
+
+```bash
+docker exec -it sysbench-debian bash
+```
+
+Test connection via ProxySQL:
+
+```bash
+mysql -h proxysql -P6033 -u root -p
+```
+
+Then run a Sysbench benchmark **through ProxySQL**:
+
+```bash
+sysbench /employees_read.lua \
+  --mysql-host=proxysql \
+  --mysql-port=6033 \
+  --mysql-user=root \
+  --mysql-password=root \
+  --mysql-db=employees \
+  --threads=$(nproc) \
+  --time=60 \
+  --report-interval=10 \
+  run
+```
+
+---
+
+## **9. Monitor ProxySQL Metrics**
+
+You can monitor connection and query stats via the **admin interface**:
+
+```sql
+Admin> SELECT * FROM stats_mysql_connection_pool;
+Admin> SELECT * FROM stats_mysql_query_digest;
+Admin> SELECT * FROM stats_mysql_commands_counters;
+```
+
+---
+
+## **Summary**
+
+| Component               | Purpose                   | Port |
+| ----------------------- | ------------------------- | ---- |
+| **MySQL**               | Backend database          | 3306 |
+| **ProxySQL (Admin)**    | Management interface      | 6032 |
+| **ProxySQL (Listener)** | Client-facing MySQL proxy | 6033 |
+| **Sysbench**            | Load-testing client       | —    |
+
+**Workflow:**
+
+```
+Sysbench (client)
+      ↓
+ ProxySQL (port 6033)
+      ↓
+ MySQL (port 3306)
+```
+
+   
+</details>
