@@ -4638,3 +4638,133 @@ Admin> SAVE MYSQL VARIABLES TO DISK;
 
 ---
 
+## 📊 **Performance Analysis and Interpretation**
+
+After running your Sysbench benchmark through **ProxySQL**, you will get **reports of TPS, latency, and connection metrics**. Understanding these is crucial to identify bottlenecks and tune the system.
+
+<details>
+    <summary>Click to view Steps and Guide</summary>
+
+### **1. Key Metrics from Sysbench**
+
+#### Example Sysbench Output Snippet:
+
+```
+Threads started: 8
+Time limit: 60s
+...
+transactions: 12000  (200.00 per sec)
+queries: 24000       (400.00 per sec)
+ignored errors: 0
+reconnects: 0
+```
+
+| Metric                   | Meaning                                          | Interpretation                                                |
+| ------------------------ | ------------------------------------------------ | ------------------------------------------------------------- |
+| `transactions/sec` (TPS) | Completed transactions per second                | Higher is better; indicates throughput                        |
+| `queries/sec`            | Queries per second                               | Sum of all SQL statements executed; proxy may reduce latency  |
+| `avg latency`            | Average time per query (ms)                      | Lower latency indicates efficient pooling & connection reuse  |
+| `min/max latency`        | Min/max response time                            | Spikes in max latency may indicate contention or slow queries |
+| `reconnects`             | Number of new connections due to pool exhaustion | Should ideally be 0 with ProxySQL pooling                     |
+| `ignored errors`         | Failed queries                                   | Non-zero indicates issues in SQL, permissions, or load        |
+
+---
+
+### **2. MySQL Status Variables to Monitor**
+
+```sql
+SHOW GLOBAL STATUS LIKE 'Aborted_%';
+SHOW STATUS LIKE 'Connections';
+SHOW VARIABLES LIKE 'max_connections';
+```
+
+| Variable           | Meaning                          | What to Watch                                                      |
+| ------------------ | -------------------------------- | ------------------------------------------------------------------ |
+| `Aborted_clients`  | Clients disconnected improperly  | High values indicate client timeouts or crashes                    |
+| `Aborted_connects` | Failed connection attempts       | Should be minimal; ProxySQL helps reduce these                     |
+| `Connections`      | Total connection attempts        | Compare with `max_connections` to see if limits are reached        |
+| `max_connections`  | MySQL max concurrent connections | Ensure ProxySQL `max_connections` does not exceed this by too much |
+
+---
+
+### **3. ProxySQL Stats to Analyze**
+
+Inside ProxySQL admin interface:
+
+```sql
+Admin> SELECT * FROM stats_mysql_connection_pool;
+Admin> SELECT * FROM stats_mysql_query_digest ORDER BY sum_time DESC LIMIT 10;
+Admin> SELECT * FROM stats_mysql_commands_counters;
+```
+
+| Table                           | Key Metrics                                                | Interpretation                                                      |
+| ------------------------------- | ---------------------------------------------------------- | ------------------------------------------------------------------- |
+| `stats_mysql_connection_pool`   | `srv_hostgroup`, `hostgroup`, `status`, `used_connections` | High `used_connections` vs `max_connections` → pool may need tuning |
+| `stats_mysql_query_digest`      | Query `sum_time`, `count_star`, `avg_time`                 | Shows which queries are slow; identify bottlenecks                  |
+| `stats_mysql_commands_counters` | Counters for SELECT, INSERT, UPDATE                        | Helps analyze read/write load distribution                          |
+
+---
+
+### **4. Common Performance Bottlenecks**
+
+| Bottleneck          | Symptom                                 | Recommended Fix                                       |
+| ------------------- | --------------------------------------- | ----------------------------------------------------- |
+| Connection limits   | High `reconnects` or `Aborted_connects` | Increase ProxySQL pool, check MySQL `max_connections` |
+| Slow queries        | High `avg_time` or `max_time`           | Optimize SQL, add indexes, adjust ProxySQL rules      |
+| CPU saturation      | Low TPS despite low latency             | Reduce threads or increase CPU resources              |
+| ProxySQL saturation | High `used_connections`                 | Increase `threads` or tune connection pool parameters |
+
+---
+
+### **5. Suggested Tuning Steps**
+
+1. **ProxySQL Thread Count**
+
+   ```sql
+   Admin> SET mysql-threads = 8;
+   Admin> LOAD MYSQL VARIABLES TO RUNTIME;
+   ```
+
+2. **Connection Pool Size**
+
+   ```sql
+   Admin> UPDATE global_variables SET variable_value=4096 WHERE variable_name='mysql-max_connections';
+   Admin> LOAD MYSQL VARIABLES TO RUNTIME;
+   ```
+
+3. **Connection Lifetime and Idle Timeout**
+
+   ```sql
+   Admin> UPDATE global_variables SET variable_value=1800000 WHERE variable_name='mysql-connection_max_age_ms';
+   Admin> UPDATE global_variables SET variable_value=300000 WHERE variable_name='mysql-session_idle_timeout';
+   Admin> LOAD MYSQL VARIABLES TO RUNTIME;
+   ```
+
+4. **Query Routing / Rules**
+   Optimize query rules for heavy-read tables (e.g., route read-only queries to dedicated hostgroup).
+
+---
+
+### **6. Practical Example Analysis**
+
+If a 60-second read benchmark shows:
+
+```
+TPS: 2000
+Avg Latency: 25 ms
+Reconnections: 0
+Aborted_connects: 5
+```
+
+**Interpretation:**
+
+* TPS is decent → ProxySQL pooling is effective
+* Latency is acceptable → queries served quickly
+* 0 reconnects → pool sizing is correct
+* 5 `Aborted_connects` → minor transient failures; can monitor and check logs
+
+This workflow allows you to **benchmark, monitor, and tune** your MySQL + ProxySQL setup in a **repeatable and controlled Docker environment**.
+
+</details>
+
+---
