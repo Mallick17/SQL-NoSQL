@@ -4395,10 +4395,6 @@ Sysbench (client)
 
 ---
 
-Perfect 👍 — here’s the **extended, production-ready documentation** with a clear **architecture diagram** and **connection-pool tuning guidance** for ProxySQL.
-
----
-
 ## ProxySQL Setup with MySQL and Sysbench (Docker)
 
 <details>
@@ -4638,7 +4634,7 @@ Admin> SAVE MYSQL VARIABLES TO DISK;
 
 ---
 
-## 📊 **Performance Analysis and Interpretation**
+## **Performance Analysis and Interpretation**
 
 After running your Sysbench benchmark through **ProxySQL**, you will get **reports of TPS, latency, and connection metrics**. Understanding these is crucial to identify bottlenecks and tune the system.
 
@@ -4768,3 +4764,110 @@ This workflow allows you to **benchmark, monitor, and tune** your MySQL + ProxyS
 </details>
 
 ---
+
+## MySQL + ProxySQL + Sysbench Cheat Sheet
+
+<details>
+    <summary>Click to view the Cheat Sheet</summary>
+
+
+### Architecture Overview
+
+```
+               +---------------------------+
+               |   Sysbench Container      |
+               |  (Load Generator Client)  |
+               |  Benchmarking Lua scripts |
+               +-------------+-------------+
+                             |
+                             | TCP 6033 (ProxySQL listener)
+                             v
+               +---------------------------+
+               |       ProxySQL Layer      |
+               |  Client-facing MySQL proxy|
+               |  Admin Interface: 6032    |
+               |  Listener Port: 6033      |
+               |  Connection Pooling       |
+               |  Query Routing Rules      |
+               +-------------+-------------+
+                             |
+                             | TCP 3306 (MySQL port)
+                             v
+               +---------------------------+
+               |     MySQL Container       |
+               |  Backend Database: employees |
+               |  Max Connections: 151     |
+               |  Aborted Connects/Clients |
+               +---------------------------+
+```
+
+---
+
+### **Ports Summary**
+
+| Component         | Port | Purpose                       |
+| ----------------- | ---- | ----------------------------- |
+| Sysbench          | —    | Runs benchmark Lua scripts    |
+| ProxySQL Admin    | 6032 | Configuration & monitoring    |
+| ProxySQL Listener | 6033 | Client connections (Sysbench) |
+| MySQL             | 3306 | Backend database              |
+
+---
+
+### **Key Metrics to Monitor**
+
+#### **Sysbench**
+
+* TPS (Transactions/sec)
+* Queries/sec
+* Avg / Min / Max latency
+* Reconnects
+* Ignored errors
+
+#### **MySQL**
+
+* `SHOW STATUS LIKE 'Connections';`
+* `SHOW GLOBAL STATUS LIKE 'Aborted_%';`
+* `SHOW VARIABLES LIKE 'max_connections';`
+
+#### **ProxySQL**
+
+* `stats_mysql_connection_pool` → used connections, hostgroup
+* `stats_mysql_query_digest` → slowest queries
+* `stats_mysql_commands_counters` → query type counts
+
+---
+
+### **ProxySQL Connection Pool Tuning (Runtime)**
+
+| Parameter                             | Recommended Value          | Purpose                       |
+| ------------------------------------- | -------------------------- | ----------------------------- |
+| mysql-threads                         | `nproc`                    | Worker threads                |
+| mysql-max_connections                 | 2–4× MySQL max_connections | Max pooled client connections |
+| mysql-connection_max_age_ms           | 1800000 (30m)              | Recycle pooled connections    |
+| mysql-session_idle_timeout            | 300000 (5m)                | Close idle connections        |
+| mysql-max_transactions_per_connection | 10000                      | Max reuse per connection      |
+
+---
+
+### **Workflow Summary**
+
+1. Sysbench container generates load (Lua script queries).
+2. ProxySQL intercepts queries:
+
+   * Pools connections
+   * Applies query routing rules
+   * Manages connection limits
+3. MySQL executes queries and returns results through ProxySQL.
+4. Monitor TPS, latency, and connection stats in Sysbench, MySQL, and ProxySQL.
+
+---
+
+**Tip:** Always validate:
+
+* MySQL user has privileges for ProxySQL connections
+* ProxySQL config is loaded into runtime (`LOAD ... TO RUNTIME`)
+* Connection pool is sized correctly for expected load
+
+   
+</details>
