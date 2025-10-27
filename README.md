@@ -3942,3 +3942,196 @@ Now, test by connecting through the proxy.
 This completes the setup. Now, all traffic goes through ProxySQL, and you can add advanced features like query caching by editing `proxysql.cnf` and reloading. If you encounter errors (e.g., during copy or reload), share the output for debugging!
    
 </details>
+
+---
+
+## MySQL Performance Benchmarking with Sysbench (Docker Setup)
+
+This guide describes how to benchmark a MySQL database using **Sysbench** inside Docker containers connected through a custom Docker network.
+
+<details>
+    <summary>Click to view the guide</summary>
+
+## **1. Create a Docker Network**
+
+Create an isolated Docker network to allow the MySQL and Sysbench containers to communicate directly.
+
+```bash
+docker network create mysql-sysbench-net
+```
+
+Verify the network:
+
+```bash
+docker network ls
+```
+
+---
+
+## **2. Connect MySQL Container to the Network**
+
+Assuming you already have a running MySQL container named `mysql-container`:
+
+```bash
+docker network connect mysql-sysbench-net mysql-container
+```
+
+This ensures the Sysbench container can access MySQL using the container name `mysql-container` as hostname.
+
+---
+
+## **3. Create a Sysbench Dockerfile**
+
+Create a `Dockerfile` for a lightweight Sysbench image.
+
+```dockerfile
+# Use Debian Bullseye as the base image (ARM-compatible)
+FROM debian:bullseye
+
+# Install Sysbench and MySQL client
+RUN apt-get update && \
+    apt-get install -y sysbench default-mysql-client && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# Keep container alive
+CMD ["tail", "-f", "/dev/null"]
+```
+
+Build the image:
+
+```bash
+docker build -t sysbench:debian .
+```
+
+---
+
+## **4. Run the Sysbench Container**
+
+Start a container from the built image and attach it to the same Docker network.
+
+```bash
+docker run -it -d --name sysbench-debian --network mysql-sysbench-net sysbench:debian
+```
+
+Verify container is running:
+
+```bash
+docker ps
+```
+
+---
+
+## **5. Access the Sysbench Container**
+
+Enter the running container:
+
+```bash
+docker exec -it sysbench-debian bash
+```
+
+Check installed versions:
+
+```bash
+sysbench --version
+mysql --version
+```
+
+Check CPU thread count (for parallel test threads):
+
+```bash
+nproc
+```
+
+---
+
+## **6. Create Sysbench Lua Script**
+
+Create a Lua script for random read operations on the `employees` table.
+
+```bash
+cat > /employees_read.lua << 'EOF'
+function thread_init()
+   drv = sysbench.sql.driver()
+   con = drv:connect()
+end
+
+function event()
+   con:query("SELECT * FROM employees.employees WHERE emp_no = " .. sysbench.rand.uniform(10001, 500000))
+end
+
+function thread_done()
+   con:disconnect()
+end
+EOF
+```
+
+---
+
+## **7. Run the Sysbench Benchmark**
+
+Run the read-only benchmark for 60 seconds, using all available CPU threads.
+
+```bash
+sysbench /employees_read.lua \
+  --mysql-host=mysql-container \
+  --mysql-user=root \
+  --mysql-password=rootpass \
+  --mysql-db=employees \
+  --threads=$(nproc) \
+  --time=60 \
+  --report-interval=10 \
+  run
+```
+
+### Key parameters explained:
+
+| Parameter           | Description                                       |
+| ------------------- | ------------------------------------------------- |
+| `--mysql-host`      | Hostname of MySQL container (from Docker network) |
+| `--mysql-user`      | MySQL username                                    |
+| `--mysql-password`  | MySQL password                                    |
+| `--mysql-db`        | Target database name                              |
+| `--threads`         | Number of concurrent threads (based on CPU cores) |
+| `--time`            | Duration of the benchmark in seconds              |
+| `--report-interval` | Interval (in seconds) for progress reports        |
+
+---
+
+## **8. Monitor MySQL Connection Stats**
+
+After the test, connect to your MySQL instance and run:
+
+```sql
+SHOW GLOBAL STATUS LIKE 'Aborted_%';
+SHOW STATUS LIKE 'Connections';
+SHOW VARIABLES LIKE 'max_connections';
+```
+
+### Interpretation:
+
+| Metric             | Meaning                                                             |
+| ------------------ | ------------------------------------------------------------------- |
+| `Aborted_connects` | Failed connection attempts (authentication errors, resource limits) |
+| `Aborted_clients`  | Connections terminated unexpectedly by clients                      |
+| `Connections`      | Total number of connection attempts (successful + failed)           |
+| `max_connections`  | The configured upper limit for concurrent connections               |
+
+---
+
+## **Summary**
+
+| Step | Description                       |
+| ---- | --------------------------------- |
+| 1    | Create Docker network             |
+| 2    | Connect MySQL to network          |
+| 3    | Build Sysbench image              |
+| 4    | Run Sysbench container            |
+| 5    | Verify setup                      |
+| 6    | Create benchmark Lua script       |
+| 7    | Run benchmark                     |
+| 8    | Analyze MySQL performance metrics |
+
+</details>
+
+---
