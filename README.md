@@ -4392,3 +4392,249 @@ Sysbench (client)
 
    
 </details>
+
+---
+
+Perfect 👍 — here’s the **extended, production-ready documentation** with a clear **architecture diagram** and **connection-pool tuning guidance** for ProxySQL.
+
+---
+
+## ProxySQL Setup with MySQL and Sysbench (Docker)
+
+<details>
+    <summary>Click to view the Architecture Overview, Steps and Guide</summary>
+
+### 🧩 **Architecture Overview**
+
+```
+                 +---------------------------+
+                 |     Sysbench Container    |
+                 |  (Load Generator Client)  |
+                 +-------------+-------------+
+                               |
+                               |  TCP 6033 (ProxySQL listener)
+                               v
+                 +---------------------------+
+                 |       ProxySQL Layer      |
+                 |  Port 6033 -> MySQL Proxy |
+                 |  Port 6032 -> Admin Panel |
+                 +-------------+-------------+
+                               |
+                               |  TCP 3306 (MySQL port)
+                               v
+                 +---------------------------+
+                 |       MySQL Container     |
+                 |  Backend DB: employees    |
+                 +---------------------------+
+```
+
+**Docker Network:** `mysql-sysbench-net`
+All three containers communicate internally through this bridge network.
+
+---
+
+### **Setup Steps**
+
+#### **1. Create Docker Network**
+
+```bash
+docker network create mysql-sysbench-net
+```
+
+#### **2. Connect MySQL Container**
+
+```bash
+docker network connect mysql-sysbench-net mysql-container
+```
+
+#### **3. ProxySQL Configuration File**
+
+Create `proxysql.cnf`:
+
+```ini
+datadir="/var/lib/proxysql"
+
+admin_variables=
+{
+    admin_credentials="admin:admin"
+    mysql_ifaces="0.0.0.0:6032"
+    refresh_interval=2000
+}
+
+mysql_variables=
+{
+    threads=4
+    max_connections=2048
+    interfaces="0.0.0.0:6033"
+    default_schema="employees"
+    server_version="8.0.43"
+    commands_stats=true
+    sessions_sort=true
+}
+
+mysql_servers=
+(
+    { address="mysql-container", port=3306, hostgroup=10 }
+)
+
+mysql_users=
+(
+    { username="root", password="root", default_hostgroup=10 }
+)
+
+mysql_query_rules=
+(
+    { match_pattern="^SELECT .* FROM employees\\..*", destination_hostgroup=10, apply=1 }
+)
+```
+
+#### **4. Run ProxySQL Container**
+
+```bash
+docker run -d --name proxysql \
+  --network mysql-sysbench-net \
+  -p 6033:6033 -p 6032:6032 \
+  proxysql/proxysql:latest
+```
+
+Copy config into container:
+
+```bash
+docker cp proxysql.cnf proxysql:/etc/proxysql.cnf
+```
+
+---
+
+### **Load ProxySQL Configuration**
+
+Access admin console:
+
+```bash
+docker exec -it proxysql mysql -u admin -padmin -h 127.0.0.1 -P6032 --prompt='Admin> '
+```
+
+Run:
+
+```sql
+Admin> LOAD MYSQL SERVERS FROM CONFIG;
+Admin> LOAD MYSQL USERS FROM CONFIG;
+Admin> LOAD MYSQL QUERY RULES FROM CONFIG;
+Admin> LOAD MYSQL VARIABLES FROM CONFIG;
+Admin> LOAD ADMIN VARIABLES FROM CONFIG;
+
+Admin> SAVE MYSQL SERVERS TO DISK;
+Admin> SAVE MYSQL USERS TO DISK;
+Admin> SAVE MYSQL QUERY RULES TO DISK;
+Admin> SAVE MYSQL VARIABLES TO DISK;
+Admin> SAVE ADMIN VARIABLES TO DISK;
+
+Admin> LOAD MYSQL SERVERS TO RUNTIME;
+Admin> LOAD MYSQL USERS TO RUNTIME;
+Admin> LOAD MYSQL QUERY RULES TO RUNTIME;
+Admin> LOAD MYSQL VARIABLES TO RUNTIME;
+Admin> LOAD ADMIN VARIABLES TO RUNTIME;
+
+Admin> SELECT * FROM runtime_mysql_servers;
+```
+
+---
+
+### **MySQL Configuration**
+
+Grant root user remote access from ProxySQL:
+
+```bash
+docker exec -it mysql-container bash
+mysql -u root -p -e "GRANT ALL PRIVILEGES ON *.* TO 'root'@'%' WITH GRANT OPTION; FLUSH PRIVILEGES;"
+```
+
+---
+
+### **Run Sysbench Through ProxySQL**
+
+Access Sysbench container:
+
+```bash
+docker exec -it sysbench-debian bash
+```
+
+Run a benchmark (reads via ProxySQL):
+
+```bash
+sysbench /employees_read.lua \
+  --mysql-host=proxysql \
+  --mysql-port=6033 \
+  --mysql-user=root \
+  --mysql-password=root \
+  --mysql-db=employees \
+  --threads=$(nproc) \
+  --time=60 \
+  --report-interval=10 \
+  run
+```
+
+---
+
+### **Monitoring Metrics**
+
+Inside ProxySQL admin interface (`port 6032`):
+
+```sql
+Admin> SELECT * FROM stats_mysql_connection_pool;
+Admin> SELECT * FROM stats_mysql_query_digest;
+Admin> SELECT * FROM stats_mysql_commands_counters;
+Admin> SELECT * FROM mysql_server_connect_log ORDER BY time_start_us DESC LIMIT 5;
+```
+
+---
+
+### ⚡ **Tuning Connection Pool Parameters**
+
+ProxySQL can maintain persistent connections to MySQL and reuse them for new clients, improving throughput and latency.
+
+Below are recommended tuning variables for heavy load testing:
+
+| Parameter                               | Description                                  | Recommended                    |
+| --------------------------------------- | -------------------------------------------- | ------------------------------ |
+| `mysql-threads`                         | Number of worker threads                     | Set to `nproc` (e.g. 4–8)      |
+| `mysql-max_connections`                 | Max client connections                       | 2–4× MySQL’s `max_connections` |
+| `mysql-default_query_timeout`           | Query timeout in ms                          | `36000000` (10h)               |
+| `mysql-ping_interval_server_msec`       | Health check frequency                       | 10000 (10s)                    |
+| `mysql-monitor_connect_interval`        | Backend connectivity test interval           | 200000 (200s)                  |
+| `mysql-monitor_ping_interval`           | Backend ping interval                        | 200000 (200s)                  |
+| `mysql-monitor_history`                 | Monitor history retention                    | 60000                          |
+| `mysql-connection_max_age_ms`           | Max age of pooled connections before refresh | 1800000 (30m)                  |
+| `mysql-max_transactions_per_connection` | Reuse limit per connection                   | 10000                          |
+| `mysql-session_idle_timeout`            | Idle session close timeout                   | 300000 (5m)                    |
+
+To modify at runtime:
+
+```sql
+Admin> UPDATE global_variables SET variable_value='1800000' WHERE variable_name='mysql-connection_max_age_ms';
+Admin> LOAD MYSQL VARIABLES TO RUNTIME;
+Admin> SAVE MYSQL VARIABLES TO DISK;
+```
+
+---
+
+### **Verification Flow**
+
+| Action                      | Command                                                                          |
+| --------------------------- | -------------------------------------------------------------------------------- |
+| Check backend status        | `Admin> SELECT * FROM mysql_servers;`                                            |
+| Check connection pool stats | `Admin> SELECT * FROM stats_mysql_connection_pool;`                              |
+| Check live traffic          | `Admin> SELECT * FROM stats_mysql_query_digest ORDER BY sum_time DESC LIMIT 10;` |
+| Validate MySQL privileges   | `mysql -h mysql-container -u root -p`                                            |
+
+---
+
+### 🧠 **Performance Notes**
+
+* **ProxySQL** helps handle **burst connections** by pooling MySQL sessions.
+* **Sysbench** results may show higher TPS and lower connection latency compared to direct MySQL connection.
+* It is ideal for production-like testing where connection reuse and load balancing behavior must be simulated.
+
+</details>
+
+---
+
