@@ -3719,7 +3719,7 @@ MySQL memory is dominated by InnoDB buffer pool, query cache (if enabled), and t
   - Tools: Install MySQL Workbench, phpMyAdmin, or Prometheus + Grafana for dashboards. Run MySQLTuner script for automated suggestions.
   - Binlog/InnoDB Logs: The settings look fine (e.g., `sync_binlog=1` for durability). If high write load, consider `innodb_flush_log_at_trx_commit=2` for perf (less safe).
 
-Apply changes gradually, monitor with `SHOW GLOBAL STATUS;` before/after, and test in a non-prod environment. If you provide more details (e.g., MySQL version, server specs, workload), I can refine further.
+Apply changes gradually, monitor with `SHOW GLOBAL STATUS;` before/after, and test in a non-prod environment.
    
 </details>
    
