@@ -3514,3 +3514,128 @@ Save this as `monitor_connections.sh`, make it executable (`chmod +x monitor_con
 - **Detailed Connection Info**: `SHOW PROCESSLIST;`
 
 </details>
+
+---
+
+## Enabling the Logs and Monitoring
+
+<details>
+    <summary>Click to view steps and guide</summary>
+
+### Combined Guide: Verify and Enable MySQL Logs
+
+#### Step 1: Verify Log Status
+Connect to MySQL:
+```bash
+mysql -u root -p
+```
+
+1. **General Query Log**:
+   ```sql
+   SHOW VARIABLES LIKE 'general_log%';
+   ```
+   - Expected if disabled: `general_log = OFF`, file: `/var/lib/mysql/88e7e755eccf.log`.
+
+2. **Slow Query Log**:
+   ```sql
+   SHOW VARIABLES LIKE 'slow_query_log%';
+   ```
+   - Expected if disabled: `slow_query_log = OFF`, file: `/var/lib/mysql/88e7e755eccf-slow.log`.
+
+3. **Log Output**:
+   ```sql
+   SHOW VARIABLES LIKE 'log_output%';
+   ```
+   - Expected: `log_output = FILE`.
+
+4. **Error Log**:
+   ```sql
+   SHOW VARIABLES LIKE 'log_error%';
+   ```
+   - Expected: `log_error = stderr`, `log_error_verbosity = 2`.
+
+5. **Test Activity** (No entries if disabled):
+   - General: `SELECT 1;` then `tail -f /var/lib/mysql/88e7e755eccf.log`.
+   - Slow: `SELECT SLEEP(2);` then `tail -f /var/lib/mysql/88e7e755eccf-slow.log`.
+   - Error: `journalctl -u mysql -f`.
+
+#### Solution 1: Enable Logs Dynamically
+```sql
+SET GLOBAL general_log = 'ON';
+SET GLOBAL slow_query_log = 'ON';
+SET GLOBAL long_query_time = 1;
+SET GLOBAL log_queries_not_using_indexes = 'ON';
+SET GLOBAL log_error = '/var/lib/mysql/error.log';  -- Redirect error log
+```
+- Permissions:
+  ```bash
+  sudo chown mysql:mysql /var/lib/mysql/88e7e755eccf*.log /var/lib/mysql/error.log
+  sudo chmod 660 /var/lib/mysql/88e7e755eccf*.log /var/lib/mysql/error.log
+  ```
+
+#### Step 2: Verify After Dynamic Enable
+Re-run queries from Step 1:
+- `general_log = ON`, `slow_query_log = ON`.
+- Test: `SELECT 1;` → Check `tail -f /var/lib/mysql/88e7e755eccf.log` for entry.
+- Slow: `SELECT SLEEP(2);` → Check slow log.
+- Error: `tail -f /var/lib/mysql/error.log`.
+
+#### Solution 2: Enable Persistently
+Edit `/etc/mysql/my.cnf` under `[mysqld]`:
+```ini
+[mysqld]
+general_log = 1
+general_log_file = /var/lib/mysql/88e7e755eccf.log
+slow_query_log = 1
+slow_query_log_file = /var/lib/mysql/88e7e755eccf-slow.log
+long_query_time = 1
+log_queries_not_using_indexes = 1
+log_output = FILE
+log_error = /var/lib/mysql/error.log
+log_error_verbosity = 3
+max_connections = 500  -- For heavy load
+```
+Restart:
+```bash
+sudo systemctl restart mysql
+```
+
+#### Step 3: Verify After Persistent Enable
+- Re-run `SHOW VARIABLES` from Step 1: All should show `ON` (except error to file).
+- Test activity as in Step 1 (entries should appear in logs).
+
+#### Solution 3: Test Under Heavy Load
+1. Install `sysbench`:
+   ```bash
+   sudo apt install sysbench  # Ubuntu; or yum for CentOS
+   ```
+2. Prepare:
+   ```sql
+   CREATE DATABASE sbtest;
+   ```
+   ```bash
+   sysbench /usr/share/sysbench/oltp_read_write.lua --mysql-host=localhost --mysql-user=root --mysql-password=your_password --mysql-db=sbtest --tables=10 --table-size=1000000 prepare
+   ```
+3. Run load (500 threads):
+   ```bash
+   sysbench /usr/share/sysbench/oltp_read_write.lua --mysql-host=localhost --mysql-user=root --mysql-password=your_password --mysql-db=sbtest --tables=10 --table-size=1000000 --threads=500 --time=300 --report-interval=10 run
+   ```
+4. Monitor threads: `SHOW PROCESSLIST;`.
+
+#### Step 4: Verify Logs Under Load
+- General: `tail -f /var/lib/mysql/88e7e755eccf.log` (high volume queries).
+- Slow: `tail -f /var/lib/mysql/88e7e755eccf-slow.log` (slow queries).
+- Error: `tail -f /var/lib/mysql/error.log` (any issues).
+- Analyze slow: `mysqldumpslow /var/lib/mysql/88e7e755eccf-slow.log`.
+
+#### Final Clean Up
+- Stop load: `Ctrl+C`.
+- Drop: `DROP DATABASE sbtest;`.
+- Disable (optional): `SET GLOBAL general_log = 'OFF'; SET GLOBAL slow_query_log = 'OFF';`.
+- Monitor size: `du -sh /var/lib/mysql/88e7e755eccf*.log`.
+
+Notes: Old `.CSV` files may be from table logs (`SELECT * FROM mysql.general_log;`). Adjust resources to avoid crashes.
+   
+</details>
+
+---
