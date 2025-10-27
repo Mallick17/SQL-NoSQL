@@ -3728,8 +3728,10 @@ Apply changes gradually, monitor with `SHOW GLOBAL STATUS;` before/after, and te
 
 ---
 
+## Step-by-Step Guide to Setting Up MySQL Proxy
+
 <details>
-    <summary>Click to view</summary>
+    <summary>Click to view Step-by-Step Guide to Setting Up MySQL Proxy (Using ProxySQL) with Your Running MySQL Container</summary>
 
 ### Step-by-Step Guide to Setting Up MySQL Proxy (Using ProxySQL) with Your Running MySQL Container
 
