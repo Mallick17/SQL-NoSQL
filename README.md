@@ -70,7 +70,7 @@ The containerized approach ensures reproducibility and isolation from local envi
 
 ## Folder Structure
 
-Your working directory `/Users/gyanaranjan.mallick/Downloads/docker_local` should contain:
+The working directory `/Users/gyanaranjan.mallick/Downloads/docker_local` should contain:
 
 - `MOCK_DATA.csv` — The original data CSV file.
 - `add_dummy_data.py` — Python script to add dummy rows.
@@ -166,7 +166,7 @@ docker build -t csv_dummy_data .
 
 ### 2. Run the Docker Container with Volume Mount
 
-Mount your folder so the output file is saved locally:
+Mount The folder so the output file is saved locally:
 
 ```bash
 docker run --rm -v /Users/gyanaranjan.mallick/Downloads/docker_local:/app csv_dummy_data
@@ -176,11 +176,11 @@ Details:
 
 - `--rm` cleans up container after exit.
 - `-v /local/path:/app` mounts folder from Mac into container's `/app`.
-- The script writes output `MOCK_DATA_10000_more.csv` into `/app`, which syncs to your Mac.
+- The script writes output `MOCK_DATA_10000_more.csv` into `/app`, which syncs to The Mac.
 
 ### 3. Verify Output
 
-Check your local folder `/Users/gyanaranjan.mallick/Downloads/docker_local` for the file
+Check The local folder `/Users/gyanaranjan.mallick/Downloads/docker_local` for the file
 
 `MOCK_DATA_10000_more.csv` containing the combined data.
 
@@ -194,16 +194,16 @@ This setup provides a reproducible way to:
 - Avoid local environment dependency issues.
 - Easily share or automate data preparation.
 
-If your original CSV or script changes, simply rebuild the image and rerun the container.
+If The original CSV or script changes, simply rebuild the image and rerun the container.
 
 ***
 
 [1](https://stackoverflow.com/questions/61262638/how-should-i-containerize-a-python-script-which-reads-a-csv-file)
 [2](https://forums.docker.com/t/how-to-create-a-docker-container-when-i-have-two-python-scripts-which-are-dependent-to-each-other/128530)
-[3](https://towardsdatascience.com/build-and-run-a-docker-container-for-your-machine-learning-model-60209c2d7a7f/)
+[3](https://towardsdatascience.com/build-and-run-a-docker-container-for-The-machine-learning-model-60209c2d7a7f/)
 [4](https://realpython.com/python-csv/)
 [5](https://dev.to/cloudforce/containerizing-python-data-processing-scripts-with-docker-a-step-by-step-guide-166)
-[6](https://www.kdnuggets.com/build-your-own-simple-data-pipeline-with-python-and-docker)
+[6](https://www.kdnuggets.com/build-The-own-simple-data-pipeline-with-python-and-docker)
 [7](https://www.dataquest.io/blog/intro-to-docker-compose/)
 
 </details>
@@ -215,17 +215,17 @@ If your original CSV or script changes, simply rebuild the image and rerun the c
 <details>
     <summary>Click to view the Quick Setup</summary>
 
-# Step-by-Step Commands you can run from your Container Shell to:
+# Step-by-Step Commands you can run from The Container Shell to:
 
 1. create a database `ola_db`
 2. create lookup tables (`City`, `Vendor`, `Owner`)
 3. create the `Ola_cab` table with **foreign key** constraints (so MySQL enforces referential integrity)
 4. seed the lookup tables with valid IDs
-5. load your CSV file `/var/lib/mysql-files/MOCK_DATA_10000_more.csv` into `Ola_cab` (the CSV header is ignored)
+5. load The CSV file `/var/lib/mysql-files/MOCK_DATA_10000_more.csv` into `Ola_cab` (the CSV header is ignored)
 
 ---
 
-## 1) Create a SQL script (copy & paste this into your container)
+## 1) Create a SQL script (copy & paste this into The container)
 
 Paste everything between the triple backticks into a new file, for example `/tmp/ola_create_and_load.sql`:
 
@@ -251,7 +251,7 @@ CREATE TABLE IF NOT EXISTS Owner (
   name VARCHAR(200)
 ) ENGINE=InnoDB;
 
--- Create main Ola_cab table (types follow your provided schema).
+-- Create main Ola_cab table (types follow The provided schema).
 -- Note: ensure column order below matches the CSV header order.
 CREATE TABLE IF NOT EXISTS Ola_cab (
   id INT PRIMARY KEY,
@@ -362,7 +362,7 @@ ON DUPLICATE KEY UPDATE name = VALUES(name);
 FLUSH TABLES;
 
 -- Load CSV into Ola_cab
--- IMPORTANT: adjust the FIELDS/ENCLOSED/TERMINATED rules if your CSV format differs
+-- IMPORTANT: adjust the FIELDS/ENCLOSED/TERMINATED rules if The CSV format differs
 LOAD DATA INFILE '/var/lib/mysql-files/MOCK_DATA_10000_more.csv'
 INTO TABLE Ola_cab
 CHARACTER SET utf8mb4
@@ -434,13 +434,13 @@ SELECT id, first_name, city_id FROM Ola_cab LIMIT 5;
 
 2. **CSV format**
 
-   * I used `FIELDS TERMINATED BY ',' OPTIONALLY ENCLOSED BY '"'` and `LINES TERMINATED BY '\n'`. If your CSV uses `\r\n` line endings, replace `LINES TERMINATED BY '\r\n'`.
+   * I used `FIELDS TERMINATED BY ',' OPTIONALLY ENCLOSED BY '"'` and `LINES TERMINATED BY '\n'`. If The CSV uses `\r\n` line endings, replace `LINES TERMINATED BY '\r\n'`.
    * The `IGNORE 1 LINES` tells MySQL to skip the header row.
 
 3. **Foreign key failures**
 
    * If a CSV row has a `city_id`, `vendor_id` or `owner_id` that is not present in the seeded lookup tables, MySQL will **reject** that row (foreign key constraint).
-   * We seeded City 1..100, Vendor 1..50, Owner 1..200. If your CSV contains IDs outside these ranges, change the seeding ranges or pre-process the CSV to fix IDs. If you prefer MySQL to accept the rows without enforcement, I can give a variant that creates the table **without** foreign keys.
+   * We seeded City 1..100, Vendor 1..50, Owner 1..200. If The CSV contains IDs outside these ranges, change the seeding ranges or pre-process the CSV to fix IDs. If you prefer MySQL to accept the rows without enforcement, I can give a variant that creates the table **without** foreign keys.
 
 4. **If LOAD DATA fails with data conversion issues**
 
@@ -477,7 +477,7 @@ USE appdb2;
 
 ## 4. Create the `Ola_cab` table
 
-Based on your column list, here is a sample `CREATE TABLE` statement with suitable data types. You should adjust data types based on actual data characteristics (length, numeric or text, etc.):
+Based on The column list, here is a sample `CREATE TABLE` statement with suitable data types. You should adjust data types based on actual data characteristics (length, numeric or text, etc.):
 
 ```sql
 CREATE TABLE Ola_cab (
@@ -552,7 +552,7 @@ CREATE TABLE Ola_cab (
 
 > **Notes:**
 > - `BOOLEAN` columns in MySQL are typically treated as tiny integers (0/1).
-> - Adjust column sizes or types based on your data for best results.
+> - Adjust column sizes or types based on The data for best results.
 
 ## 5. Verify table creation
 
@@ -571,13 +571,13 @@ SHOW VARIABLES LIKE 'secure_file_priv';
 
 This will show the directory MySQL accepts secure file operations from, e.g., `/var/lib/mysql-files/`.
 
-2. Copy your CSV into that directory inside container, e.g.:
+2. Copy The CSV into that directory inside container, e.g.:
 
 ```bash
 docker cp /Users/gyanaranjan.mallick/Downloads/docker_local/MOCK_DATA_10000_more.csv local-mysql:/var/lib/mysql-files/
 ```
 
-3. Then run your import using full path inside that directory, e.g.:
+3. Then run The import using full path inside that directory, e.g.:
 
 ```sql
 LOAD DATA INFILE '/var/lib/mysql-files/MOCK_DATA_10000_more.csv'
@@ -605,7 +605,7 @@ It depends on how the dump was created:
 | **`mysqldump` command**      | Whatever path you specify with `>`                                    | Example: `mysqldump -u root -p appdb > /home/gyan/appdb.sql` → dump is in `/home/gyan/appdb.sql` |
 | **`mysqlpump` command**      | Whatever path you specify with `--result-file`                        | Similar idea                                                                                     |
 | **`phpMyAdmin` export**      | Browser download directory                                            | Usually `Downloads/` folder                                                                      |
-| **Automated backup scripts** | Check `/var/backups/mysql/`, `/backups/`, `/opt/mysql_backups/`, etc. | Depends on your server setup or cron jobs                                                        |
+| **Automated backup scripts** | Check `/var/backups/mysql/`, `/backups/`, `/opt/mysql_backups/`, etc. | Depends on The server setup or cron jobs                                                        |
 | **Managed RDS instance**     | AWS S3 or RDS snapshots                                               | RDS stores snapshots, not `.sql` dumps, unless exported manually                                 |
 
 ---
@@ -632,7 +632,7 @@ sudo find /var/backups /home -type f -name "*.sql"
 mysqldump -u root -p appdb > /path/to/save/appdb.sql
 ```
 
-You’ll be prompted for your password, and then the dump file will be created in the location you specify.
+You’ll be prompted for The password, and then the dump file will be created in the location you specify.
 
 </details>
 
@@ -655,7 +655,7 @@ In modern software development and operations, databases are often managed withi
 The migration is "idempotent" if scripted properly—meaning it can be re-run without duplicating data—and handles errors like format mismatches or path issues through validation steps.
 
 #### Scenario: Migrating an HR Employee Database to a Production Container
-Imagine you're a DevOps engineer at a mid-sized company transitioning from a traditional server-based HR system to a cloud-native setup. The existing HR database contains employee records, department details, salary histories, and titles for 300,000+ employees, stored in a repository as schema scripts and data dump files. Your goal is to migrate this entire database to a running MySQL container in a Docker environment for better scalability during peak hiring seasons.
+Imagine you're a DevOps engineer at a mid-sized company transitioning from a traditional server-based HR system to a cloud-native setup. The existing HR database contains employee records, department details, salary histories, and titles for 300,000+ employees, stored in a repository as schema scripts and data dump files. The goal is to migrate this entire database to a running MySQL container in a Docker environment for better scalability during peak hiring seasons.
 
 1. **Preparation Phase (Source Acquisition and Planning)**:
    - You start by acquiring the database source from a public repository (e.g., a GitHub archive). This includes a main schema script that defines the database structure (e.g., creating tables like "employees" with columns for ID, name, birth date, and hire date, plus constraints like primary keys on employee IDs and foreign keys linking departments to managers).
@@ -676,7 +676,7 @@ Imagine you're a DevOps engineer at a mid-sized company transitioning from a tra
 
 5. **Post-Migration Usage**:
    - The migrated database is now live in the container, ready for queries (e.g., joining employees with salaries for payroll reports). The container can be scaled (e.g., replicated in a cluster) without re-migrating, as the database is self-contained.
-   - In your company's scenario, this enables HR teams to query employee data seamlessly, with the container handling high loads during audits.
+   - In The company's scenario, this enables HR teams to query employee data seamlessly, with the container handling high loads during audits.
 
 #### Benefits and Theoretical Considerations
 - **Portability**: Containers encapsulate the database, making it easy to deploy across environments (dev, staging, production).
@@ -702,9 +702,9 @@ This guide provides a clean and organized process to import the Employees Databa
 #### Prerequisites
 - **Docker and MySQL Container**: A running MySQL container. Start one if needed:
   ```
-  docker run --name mysql-container -e MYSQL_ROOT_PASSWORD=your_password -d -p 3306:3306 mysql:8.0
+  docker run --name mysql-container -e MYSQL_ROOT_PASSWORD=The_password -d -p 3306:3306 mysql:8.0
   ```
-  Replace `your_password` with a secure password. Use your container name (e.g., `mysql-container`).
+  Replace `The_password` with a secure password. Use The container name (e.g., `mysql-container`).
 - **Repository Files**: The `test_db` repository from https://github.com/datacharmer/test_db, containing `employees.sql` and `.dump` files (e.g., `load_departments.dump`).
 - **User Privileges**: Root user access with full privileges (e.g., CREATE, INSERT, FOREIGN KEY).
 - **Disk Space**: At least 500 MB free for data and indexes.
@@ -1631,10 +1631,10 @@ In MySQL, tables exist within a database (schema) context, and `mysqldump` requi
 ##### Step 3: Set Up a New MySQL Container
 1. **Create a New Container**:
    ```
-   docker run --name new-mysql-container -e MYSQL_ROOT_PASSWORD=your_password -d -p 3307:3306 mysql:8.0
+   docker run --name new-mysql-container -e MYSQL_ROOT_PASSWORD=The_password -d -p 3307:3306 mysql:8.0
    ```
    - Port 3307 avoids conflict with `mysql-container` (port 3306).
-   - Replace `your_password` with a secure password.
+   - Replace `The_password` with a secure password.
 2. **Verify Container**:
    ```
    docker ps
@@ -1939,10 +1939,10 @@ This corrected process successfully dumped the entire `employees` database and r
 
 ### Step-by-Step Guide to Dump the Entire Employees Database and Restore It in Another Container
 
-Now that the Employees Database is running successfully in your current MySQL container (`mysql-container`), we'll export (dump) the entire database (including all tables, schema, data, views, and constraints) to a SQL file on your local machine. Then, we'll restore it in a new MySQL container. This process ensures the full database (~167 MB) is portable and can be migrated without data loss. The dump will include everything: tables like `employees` (~300,024 rows), `salaries` (~2,844,047 rows), and relationships via foreign keys.
+Now that the Employees Database is running successfully in The current MySQL container (`mysql-container`), we'll export (dump) the entire database (including all tables, schema, data, views, and constraints) to a SQL file on The local machine. Then, we'll restore it in a new MySQL container. This process ensures the full database (~167 MB) is portable and can be migrated without data loss. The dump will include everything: tables like `employees` (~300,024 rows), `salaries` (~2,844,047 rows), and relationships via foreign keys.
 
 #### Prerequisites
-- Your current container (`mysql-container`) is running with the `employees` database populated.
+- The current container (`mysql-container`) is running with the `employees` database populated.
 - Docker is installed on the host.
 - Root access to MySQL (with password set).
 - Disk space: At least 200 MB free on the host for the dump file.
@@ -1977,7 +1977,7 @@ Now that the Employees Database is running successfully in your current MySQL co
    chown mysql:mysql /var/lib/mysql-files/employees_full_dump.sql
    ```
 
-#### Step 2: Copy the Dump File to Your Local Machine
+#### Step 2: Copy the Dump File to The Local Machine
 1. **Exit the Container**:
    ```
    exit
@@ -2002,10 +2002,10 @@ Now that the Employees Database is running successfully in your current MySQL co
 1. **Start a New Container**:
    Create a fresh MySQL container:
    ```
-   docker run --name new-mysql-container -e MYSQL_ROOT_PASSWORD=your_password -d -p 3307:3306 mysql:8.0
+   docker run --name new-mysql-container -e MYSQL_ROOT_PASSWORD=The_password -d -p 3307:3306 mysql:8.0
    ```
    - Uses port 3307 to avoid conflict with the original container (port 3306).
-   - Replace `your_password` with a secure password.
+   - Replace `The_password` with a secure password.
 2. **Verify New Container**:
    ```
    docker ps
@@ -2571,7 +2571,7 @@ This revised process focuses on the `employees` table, addressing the specific t
 
 ## Step by Step guide to delete the rows in the table
 
-To delete specific data (rows) from a table in your MySQL `employees` database (or any table within it, such as `employees`, `departments`, etc.), you can use the `DELETE` statement with a `WHERE` clause to target only the rows you want to remove. Below, I’ll explain how to delete specific data, provide examples tailored to your context, and cover best practices to ensure you don’t accidentally delete unintended data.
+To delete specific data (rows) from a table in The MySQL `employees` database (or any table within it, such as `employees`, `departments`, etc.), you can use the `DELETE` statement with a `WHERE` clause to target only the rows you want to remove. Below, I’ll explain how to delete specific data, provide examples tailored to The context, and cover best practices to ensure you don’t accidentally delete unintended data.
 
 <details>
     <summary>Click to view Steps to Delete Specific Data from a Table</summary>
@@ -2579,7 +2579,7 @@ To delete specific data (rows) from a table in your MySQL `employees` database (
 ### **Steps to Delete Specific Data from a Table**
 
 1. **Identify the Table and Rows**:
-   - Determine the table (e.g., `employees`, `salaries`, etc.) from your `SHOW TABLES` output.
+   - Determine the table (e.g., `employees`, `salaries`, etc.) from The `SHOW TABLES` output.
    - Specify the condition in the `WHERE` clause to select the rows you want to delete based on column values.
 
 2. **Use the `DELETE` Statement**:
@@ -2603,9 +2603,9 @@ To delete specific data (rows) from a table in your MySQL `employees` database (
 5. **Handle Constraints**:
    - If the table has foreign key relationships (e.g., `employees` linked to `dept_emp` or `salaries`), you may need to address constraints to avoid errors.
 
-### **Examples in Your `employees` Database**
+### **Examples in The `employees` Database**
 
-Based on your `SHOW TABLES` output (`employees`, `departments`, `dept_emp`, etc.), let’s assume you want to delete specific rows from the `employees` table. Here are some common scenarios:
+Based on The `SHOW TABLES` output (`employees`, `departments`, `dept_emp`, etc.), let’s assume you want to delete specific rows from the `employees` table. Here are some common scenarios:
 
 #### **Example 1: Delete Employees with a Specific `emp_no`**
 To delete a single employee with `emp_no = 10001`:
@@ -2677,7 +2677,7 @@ LIMIT 10;
 - **Note**: The `LIMIT` clause in `DELETE` is supported in MySQL but not in all SQL databases.
 
 ### **Handling Foreign Key Constraints**
-Your `employees` database has tables like `dept_emp`, `salaries`, and `titles` that likely reference the `employees` table via foreign keys (e.g., `emp_no`). Deleting rows from `employees` may cause errors if referenced data exists. Here’s how to handle this:
+The `employees` database has tables like `dept_emp`, `salaries`, and `titles` that likely reference the `employees` table via foreign keys (e.g., `emp_no`). Deleting rows from `employees` may cause errors if referenced data exists. Here’s how to handle this:
 
 1. **Check Foreign Key Constraints**:
    - View the table’s structure to identify foreign keys:
@@ -2746,14 +2746,14 @@ Your `employees` database has tables like `dept_emp`, `salaries`, and `titles` t
    - Ensure the `WHERE` clause is specific enough to target only the intended rows. Without a `WHERE` clause, `DELETE FROM table_name;` will delete **all rows** in the table.
 
 6. **Check Affected Rows**:
-   - After running `DELETE`, MySQL reports the number of rows affected. Verify this matches your expectations:
+   - After running `DELETE`, MySQL reports the number of rows affected. Verify this matches The expectations:
      ```
      Query OK, 5 rows affected (0.02 sec)
      ```
 
 ### **Common Pitfalls to Avoid**
 - **Missing `WHERE` Clause**:
-  - Running `DELETE FROM employees;` without a `WHERE` clause deletes **all rows** in the table. Always double-check your query.
+  - Running `DELETE FROM employees;` without a `WHERE` clause deletes **all rows** in the table. Always double-check The query.
 - **Foreign Key Errors**:
   - Deleting from `employees` may fail if `emp_no` is referenced elsewhere. Address dependent tables or disable foreign key checks as needed.
 - **Incorrect Conditions**:
@@ -2778,12 +2778,12 @@ DELETE FROM employees WHERE emp_no = 10001;
 ```
 
 ### **Conclusion**
-To delete specific data from a table in your `employees` database:
+To delete specific data from a table in The `employees` database:
 - Use `DELETE FROM table_name WHERE condition;` to target specific rows.
 - Preview with `SELECT` to verify the rows to be deleted.
 - Handle foreign key constraints by deleting dependent rows first, disabling checks, or ensuring cascading deletes are configured.
 - Use transactions and backups for safety.
-- Example for your `employees` table:
+- Example for The `employees` table:
   ```sql
   START TRANSACTION;
   SELECT * FROM employees WHERE emp_no = 10001; -- Preview
@@ -2804,8 +2804,8 @@ If you have a specific table or condition in mind (e.g., delete employees with c
 ### **Key Considerations**
 - **Do You Have a Backup?**: You need a recent `.sql` dump file (e.g., `employees_table.sql` or a full database dump) that contains the table’s data before the deletion occurred.
 - **Can You Identify Missing Rows?**: If you don’t know which rows were deleted, you’ll need to compare the current table with the backup to find the differences.
-- **Foreign Key Constraints**: Your `employees` database has related tables (e.g., `dept_emp`, `salaries`). Restoring rows in one table may require restoring related rows in others to maintain data integrity.
-- **Alternative Recovery Options**: If you don’t have a dump file, other methods like binary logs or point-in-time recovery may be available, depending on your MySQL configuration.
+- **Foreign Key Constraints**: The `employees` database has related tables (e.g., `dept_emp`, `salaries`). Restoring rows in one table may require restoring related rows in others to maintain data integrity.
+- **Alternative Recovery Options**: If you don’t have a dump file, other methods like binary logs or point-in-time recovery may be available, depending on The MySQL configuration.
 
 <details>
     <summary>Click to view the options and steps to restore</summary>
@@ -3013,7 +3013,7 @@ If you don’t have a dump file or want to recover without a full restore, you c
      SHOW CREATE TABLE dept_emp;
      ```
 
-### **Example in Your Context**
+### **Example in The Context**
 Assume you accidentally deleted rows from the `employees` table and have a dump file `employees_table.sql`.
 
 1. **Create Temporary Database**:
@@ -3069,7 +3069,7 @@ You don’t need to delete all rows and restore the entire table. Instead, you c
 - Compare the current table with the backup in a temporary database.
 - Identify missing rows using a `LEFT JOIN` query.
 - Export and restore only the missing rows with `mysqldump --where`.
-This approach preserves existing data and is more precise. If binary logs are enabled, you can also explore point-in-time recovery, but a dump file is usually easier to work with. Always maintain regular backups and test your restore process to ensure data integrity.
+This approach preserves existing data and is more precise. If binary logs are enabled, you can also explore point-in-time recovery, but a dump file is usually easier to work with. Always maintain regular backups and test The restore process to ensure data integrity.
 
 </details>
 
@@ -3082,7 +3082,7 @@ The best approach depends on whether you can identify the affected table and the
 2. Extract relevant rows from the full dump (`employees_full_dump.sql`).
 3. Restore only those rows, handling foreign key constraints.
 
-Given the complexity of pinpointing deleted rows without specific details, we’ll use a practical method to restore missing data by leveraging the backup and MySQL tools, minimizing disruption to the existing database. Below is a step-by-step guide, tailored to your containerized setup, with alternatives if needed.
+Given the complexity of pinpointing deleted rows without specific details, we’ll use a practical method to restore missing data by leveraging the backup and MySQL tools, minimizing disruption to the existing database. Below is a step-by-step guide, tailored to The containerized setup, with alternatives if needed.
 
 ### Best Approach: Restore Missing Rows Using the Full Database Dump
 
@@ -3282,7 +3282,7 @@ Since the full dump (`employees_full_dump.sql`) contains all tables, we’ll ext
        ```
    - Schedule daily backups:
      ```
-     0 2 * * * docker exec mysql-container mysqldump -u root -pYOUR_PASSWORD --databases employees > /var/lib/mysql-files/backup_$(date +%Y%m%d).sql
+     0 2 * * * docker exec mysql-container mysqldump -u root -pThe_PASSWORD --databases employees > /var/lib/mysql-files/backup_$(date +%Y%m%d).sql
      ```
 
 #### Troubleshooting
@@ -3343,7 +3343,7 @@ First, you need to access the MySQL instance running inside the container. Assum
 docker exec -it <container_name> bash
 ```
 
-Replace `<container_name>` with the name or ID of your MySQL container. Once inside, you can connect to the MySQL server:
+Replace `<container_name>` with the name or ID of The MySQL container. Once inside, you can connect to the MySQL server:
 
 ```bash
 mysql -u root -p
@@ -3447,16 +3447,16 @@ Example output:
 +-----------------+-------+
 ```
 
-If `Threads_connected` approaches `max_connections`, you may need to increase this limit or optimize your application.
+If `Threads_connected` approaches `max_connections`, you may need to increase this limit or optimize The application.
 
 ### 3. **Monitor Connections in Real-Time**
 To continuously monitor connections, you can run the above commands in a loop inside the container. For example:
 
 ```bash
-watch -n 1 'mysql -u root -p<your_password> -e "SHOW STATUS LIKE \"Threads_%\"; SHOW STATUS LIKE \"Connections\"; SHOW PROCESSLIST;"'
+watch -n 1 'mysql -u root -p<The_password> -e "SHOW STATUS LIKE \"Threads_%\"; SHOW STATUS LIKE \"Connections\"; SHOW PROCESSLIST;"'
 ```
 
-This updates the output every second. Replace `<your_password>` with your MySQL root password.
+This updates the output every second. Replace `<The_password>` with The MySQL root password.
 
 ### 4. **Use MySQL Tools for Advanced Monitoring**
 If you need more detailed monitoring, consider these tools available in the MySQL container:
@@ -3488,11 +3488,11 @@ This provides detailed thread information, including connection states.
 ### 5. **External Monitoring Tools**
 For a more robust solution, you can use external tools to monitor MySQL connections from outside the container:
 
-- **Prometheus + MySQL Exporter**: Deploy a MySQL exporter in your containerized environment to scrape metrics like `mysql_global_status_threads_connected` and visualize them in Prometheus or Grafana.
+- **Prometheus + MySQL Exporter**: Deploy a MySQL exporter in The containerized environment to scrape metrics like `mysql_global_status_threads_connected` and visualize them in Prometheus or Grafana.
 - **MySQL Workbench**: Connect to the MySQL instance running in the container and use its performance dashboard to monitor connections.
 - **Zabbix or Nagios**: Configure these tools to monitor MySQL metrics via the container’s exposed port (default: 3306).
 
-To expose MySQL metrics, ensure the container’s MySQL port is mapped to the host (e.g., `-p 3306:3306` in your `docker run` command).
+To expose MySQL metrics, ensure the container’s MySQL port is mapped to the host (e.g., `-p 3306:3306` in The `docker run` command).
 
 ### 6. **Automating Connection Monitoring**
 To automate monitoring, you can write a script inside the container. For example, create a script to log connection stats:
@@ -3500,7 +3500,7 @@ To automate monitoring, you can write a script inside the container. For example
 ```bash
 #!/bin/bash
 while true; do
-  mysql -u root -p<your_password> -e "SHOW STATUS LIKE 'Threads_%'; SHOW STATUS LIKE 'Connections';" >> /var/log/mysql_connections.log
+  mysql -u root -p<The_password> -e "SHOW STATUS LIKE 'Threads_%'; SHOW STATUS LIKE 'Connections';" >> /var/log/mysql_connections.log
   sleep 10
 done
 ```
@@ -3604,37 +3604,124 @@ sudo systemctl restart mysql
 - Re-run `SHOW VARIABLES` from Step 1: All should show `ON` (except error to file).
 - Test activity as in Step 1 (entries should appear in logs).
 
-#### Solution 3: Test Under Heavy Load
-1. Install `sysbench`:
-   ```bash
-   sudo apt install sysbench  # Ubuntu; or yum for CentOS
-   ```
-2. Prepare:
-   ```sql
-   CREATE DATABASE sbtest;
-   ```
-   ```bash
-   sysbench /usr/share/sysbench/oltp_read_write.lua --mysql-host=localhost --mysql-user=root --mysql-password=your_password --mysql-db=sbtest --tables=10 --table-size=1000000 prepare
-   ```
-3. Run load (500 threads):
-   ```bash
-   sysbench /usr/share/sysbench/oltp_read_write.lua --mysql-host=localhost --mysql-user=root --mysql-password=your_password --mysql-db=sbtest --tables=10 --table-size=1000000 --threads=500 --time=300 --report-interval=10 run
-   ```
-4. Monitor threads: `SHOW PROCESSLIST;`.
+<details>
+    <summary>Click to view other logs to enable and monitor</summary>
 
-#### Step 4: Verify Logs Under Load
-- General: `tail -f /var/lib/mysql/88e7e755eccf.log` (high volume queries).
-- Slow: `tail -f /var/lib/mysql/88e7e755eccf-slow.log` (slow queries).
-- Error: `tail -f /var/lib/mysql/error.log` (any issues).
-- Analyze slow: `mysqldumpslow /var/lib/mysql/88e7e755eccf-slow.log`.
+To optimize MySQL performance monitoring, I'll focus on reconfiguring the logging setup (moving relevant logs to `/var/log/mysql` for better organization and accessibility), enabling/enhancing monitoring for dropped connections, memory utilization, active connections, slow queries, and query execution times. I'll explain the rationale, suggest specific variable changes (some can be set dynamically via SQL, others require editing `my.cnf` and restarting MySQL), and provide queries to monitor these metrics ongoing.
 
-#### Final Clean Up
-- Stop load: `Ctrl+C`.
-- Drop: `DROP DATABASE sbtest;`.
-- Disable (optional): `SET GLOBAL general_log = 'OFF'; SET GLOBAL slow_query_log = 'OFF';`.
-- Monitor size: `du -sh /var/lib/mysql/88e7e755eccf*.log`.
+### Step 1: Reconfigure Log File Locations
+The current logs are scattered in `/var/lib/mysql/` with container-like prefixes (e.g., `88e7e755eccf.log`). We'll move the general log, slow query log, and error log to `/var/log/mysql/` for centralized management. Binlogs and relay logs are typically kept in data directories for replication/recovery, so I'll leave them unless you insist on moving (not recommended as it can break replication).
 
-Notes: Old `.CSV` files may be from table logs (`SELECT * FROM mysql.general_log;`). Adjust resources to avoid crashes.
+- **Dynamic Changes (via SQL, no restart needed):**
+  Run these in The MySQL shell:
+  ```
+  SET GLOBAL general_log_file = '/var/log/mysql/general.log';
+  SET GLOBAL slow_query_log_file = '/var/log/mysql/slow.log';
+  ```
+  - This relocates the files immediately. Ensure the directory `/var/log/mysql` exists and MySQL has write permissions (e.g., `chown mysql:mysql /var/log/mysql` and `chmod 755 /var/log/mysql` on the host).
+
+- **Persistent Changes (edit `my.cnf` or `my.ini` under `[mysqld]` section, then restart MySQL):**
+  Add/update these:
+  ```
+  general_log_file = /var/log/mysql/general.log
+  slow_query_log_file = /var/log/mysql/slow.log
+  log_error = /var/log/mysql/error.log  # Changes from stderr to a file for easier tailing/monitoring
+  ```
+  - Restart: `sudo systemctl restart mysqld` (or equivalent).
+  - Rationale: Centralized logs make it easier to use tools like `tail -f`, logrotate, or external monitors (e.g., ELK stack, Prometheus).
+
+The `general_log` and `slow_query_log` are already ON, which is good. If general log becomes too verbose (it logs *all* queries), consider toggling it OFF for production and relying on slow query log + performance schema.
+
+### Step 2: Monitor Dropped Connections
+Dropped connections (aborted connects/clients) often indicate network issues, auth failures, or resource exhaustion.
+
+- **Enable/Enhance Logging:**
+  - The `log_error_verbosity = 2` is moderate; set to 3 for more details on errors (including connection issues):
+    ```
+    SET GLOBAL log_error_verbosity = 3;
+    ```
+    Add to `my.cnf` for persistence: `log_error_verbosity = 3`.
+  - Ensure `log_warnings` (deprecated in newer MySQL, but if available) or use performance schema for connection events.
+
+- **Monitoring Queries:**
+  Run these periodically (e.g., via cron or monitoring tool):
+  ```
+  SHOW GLOBAL STATUS LIKE 'Aborted_connects';  -- Counts failed connection attempts (e.g., bad credentials, timeouts)
+  SHOW GLOBAL STATUS LIKE 'Aborted_clients';   -- Counts connections closed abnormally (e.g., timeouts, max_packet_size exceeded)
+  SHOW GLOBAL STATUS LIKE 'Connection_errors%';  -- Breakdown of error types (e.g., Connection_errors_max_connections)
+  ```
+  - To reset counters: `FLUSH STATUS;`.
+  - Threshold: If Aborted_connects > 1% of Connections, investigate (e.g., increase `max_connections` if hitting limits).
+
+- **Optimization Tips:**
+  - Check `max_connections` (not in The log vars; run `SHOW VARIABLES LIKE 'max_connections';`). Default is 151; increase if needed: `SET GLOBAL max_connections = 200;` (and in `my.cnf`).
+  - For timeouts: Adjust `wait_timeout` and `interactive_timeout` (defaults 28800s; lower if idle connections are an issue).
+
+### Step 3: Monitor Current Memory Utilization
+MySQL memory is dominated by InnoDB buffer pool, query cache (if enabled), and thread stacks.
+
+- **Key Variables to Check/Set:**
+  - The `innodb_log_buffer_size = 16MB` and `innodb_log_file_size = 48MB` are reasonable, but monitor usage.
+  - Run `SHOW VARIABLES LIKE 'innodb_buffer_pool_size';` (not in The list; default ~128MB on small servers). To optimize, set to 50-70% of total RAM: e.g., `innodb_buffer_pool_size = 1G` in `my.cnf` (restart required).
+
+- **Monitoring Queries:**
+  ```
+  SHOW GLOBAL STATUS LIKE 'Innodb_buffer_pool_pages%';  -- Utilization: (total_pages - free_pages) / total_pages * 100%
+  SHOW GLOBAL STATUS LIKE 'Innodb_os_log_written';     -- Log write activity; high values may need larger log buffer
+  SHOW ENGINE INNODB STATUS;                           -- Detailed InnoDB stats, including memory breakdown
+  SELECT * FROM information_schema.MEMORY_GLOBAL_TOTAL;  -- Total allocated memory (MySQL 8+)
+  ```
+  - External: Use `top`, `htop`, or `free -h` on the host for OS-level MySQL process memory. Tools like MySQLTuner or Percona Monitoring can automate this.
+  - Optimization: If utilization >80%, increase buffer pool. Watch for swapping (bad for perf).
+
+### Step 4: Monitor Number of Active Connections
+- **Monitoring Queries:**
+  ```
+  SHOW GLOBAL STATUS LIKE 'Threads_connected';  -- Current active connections
+  SHOW GLOBAL STATUS LIKE 'Threads_running';     -- Actively running threads (non-sleeping)
+  SHOW GLOBAL STATUS LIKE 'Max_used_connections';-- Peak connections since last restart
+  SHOW PROCESSLIST;                              -- Detailed list of connections and what they're doing
+  ```
+  - If Threads_connected approaches max_connections, scale up or optimize queries.
+
+- **Optimization:**
+  - Enable performance_schema if not (run `SHOW VARIABLES LIKE 'performance_schema';`). Set in `my.cnf`: `performance_schema = ON` (restart).
+  - Query: `SELECT * FROM performance_schema.threads;` for thread details.
+
+### Step 5: Monitor Slow Queries, Query Execution Times, and Optimization
+- **Enhance Slow Query Logging:**
+  - The `slow_query_log = ON` is good. Set `long_query_time = 1` (seconds) to catch more:
+    ```
+    SET GLOBAL long_query_time = 1;
+    ```
+    Add to `my.cnf`: `long_query_time = 1`.
+  - Enable `log_slow_extra = ON` (if MySQL 8.0.14+): Logs extra info like rows examined.
+  - The `log_queries_not_using_indexes = ON` is enabled; good for spotting inefficient queries.
+
+- **Monitor Query Times:**
+  - General log (already ON) includes execution times for *all* queries, but disable in prod if overhead is high: `SET GLOBAL general_log = OFF;`.
+  - Use slow query log for targeted monitoring. Parse the log with `pt-query-digest` (Percona Toolkit) for summaries.
+  - For real-time: 
+    ```
+    SHOW GLOBAL STATUS LIKE 'Slow_queries';  -- Count of slow queries
+    SELECT * FROM performance_schema.events_statements_summary_global_by_event_name WHERE EVENT_NAME LIKE 'statement/sql%' ORDER BY AVG_TIMER_WAIT DESC LIMIT 10;  -- Top slow query types (requires performance_schema)
+    ```
+
+- **General Performance Optimization and Monitoring:**
+  - Enable query logging details: Set `log_slow_admin_statements = ON` and `log_slow_replica_statements = ON` in `my.cnf` if relevant.
+  - Use EXPLAIN on suspect queries to check execution plans.
+  - Key status queries:
+    ```
+    SHOW GLOBAL STATUS LIKE 'Handler_read%';  -- Index usage; high Handler_read_rnd_next means full table scans
+    SHOW GLOBAL STATUS LIKE 'Created_tmp%';    -- Temp tables; high on disk means increase tmp_table_size
+    SHOW GLOBAL STATUS LIKE 'Select%';         -- Query types; optimize full joins/scans
+    ```
+  - Tools: Install MySQL Workbench, phpMyAdmin, or Prometheus + Grafana for dashboards. Run MySQLTuner script for automated suggestions.
+  - Binlog/InnoDB Logs: The settings look fine (e.g., `sync_binlog=1` for durability). If high write load, consider `innodb_flush_log_at_trx_commit=2` for perf (less safe).
+
+Apply changes gradually, monitor with `SHOW GLOBAL STATUS;` before/after, and test in a non-prod environment. If you provide more details (e.g., MySQL version, server specs, workload), I can refine further.
+   
+</details>
    
 </details>
 
